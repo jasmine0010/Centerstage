@@ -77,11 +77,7 @@ See https://developer.android.com/guide/topics/ui/settings.html
     <PreferenceScreen
         android:title="@string/prefedit_view_logs"
         android:summary="@string/prefedit_view_logs_summary"
-        android:key="@string/pref_launch_viewlogs">
-      <intent
-          android:targetClass="com.qualcomm.ftccommon.ViewLogsActivity"
-          android:targetPackage="@string/packageName" />
-    </PreferenceScreen>
+        android:key="@string/pref_launch_viewlogs"/>
 
   </PreferenceCategory>
 
