@@ -27,6 +27,9 @@ import java.util.concurrent.TimeUnit;
 public class RobotHardware {
     /* Declare OpMode members. */
     private LinearOpMode myOpMode = null;   // gain access to methods in the calling OpMode.
+    /**
+     * The variable to store our instance of the vision portal.
+     */
     public VisionPortal visionPortal;               // Used to manage the video source.
     public AprilTagProcessor aprilTag;              // Used for managing the AprilTag detection process.
     public AprilTagDetection desiredTag = null;     // Used to hold the data for a detected AprilTag
@@ -42,7 +45,9 @@ public class RobotHardware {
     // This is gearing DOWN for less speed and more torque.
     // For gearing UP, use a gear ratio less than 1.0. Note this will affect the direction of wheel rotation.
     static final double COUNTS_PER_INCH = 50;
-
+    // TFOD_MODEL_ASSET points to a model file stored in the project Asset location,
+    // this is only used for Android Studio when using models in Assets.
+    private static final String TFOD_MODEL_ASSET = "MyModelStoredAsAsset.tflite";
     public static final String TFOD_MODEL_FILE = "/sdcard/FIRST/tflitemodels/model_20231109_095305.tflite";
     // Define the labels recognized in the model for TFOD (must be in training order!)
     public static final String[] LABELS = {
@@ -76,6 +81,10 @@ public class RobotHardware {
     boolean PIVOT_UP = false;
     boolean SLIDES_UP = false;
     int PIVOT_UP_POS = -930;
+    int PIVOT_STACK_POS = -105;
+    double JOINT_STACK_POS = 0.303;
+    double CLAW_JOINT_UP = 0;
+    double CLAW_JOINT_DOWN = 0.28;
     double OPENER_ON = 1;
     double OPENER_OFF = 0.5;
     double ARM_POWER = 0.5;
@@ -83,8 +92,6 @@ public class RobotHardware {
     double CLAW_CLOSED = 0.55;
     double DRONE_UP = 0.2;
     double DRONE_DOWN = 0.03;
-    double CLAW_JOINT_UP = 0;
-    double CLAW_JOINT_DOWN = 0.28;
 
     // Adjust these numbers to suit your robot.
 
