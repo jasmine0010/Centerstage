@@ -1,8 +1,14 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
+import org.firstinspires.ftc.teamcode.drive.DriveConstants;
+import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
+import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
@@ -37,7 +43,6 @@ public class RobotHardware {
 
     ElapsedTime timeout = new ElapsedTime();
 
-
     // Calculate the COUNTS_PER_INCH for your specific drive train.
     // Go to your motor vendor website to determine your motor's COUNTS_PER_MOTOR_REV
     // For external drive gearing, set DRIVE_GEAR_REDUCTION as needed.
@@ -60,7 +65,8 @@ public class RobotHardware {
      */
     public TfodProcessor tfod;
 
-    //drivetrain
+    SampleMecanumDrive drive = new SampleMecanumDrive(myOpMode.hardwareMap);
+
     public DcMotor rightFrontDrive = null;
     public DcMotor leftFrontDrive = null;
     public DcMotor rightBackDrive = null;
@@ -81,8 +87,6 @@ public class RobotHardware {
     boolean PIVOT_UP = false;
     boolean SLIDES_UP = false;
     int PIVOT_UP_POS = -930;
-    int PIVOT_STACK_POS = -105;
-    double JOINT_STACK_POS = 0.303;
     double CLAW_JOINT_UP = 0;
     double CLAW_JOINT_DOWN = 0.28;
     double OPENER_ON = 1;
@@ -108,6 +112,8 @@ public class RobotHardware {
 
     public static final int DESIRED_TAG_ID = -1;     // Choose the tag you want to approach or set to -1 for ANY tag.
 
+    TrajectorySequence trajSeqThroughDoor = null;
+
     public RobotHardware(LinearOpMode opmode) {
         myOpMode = opmode;
     }
@@ -115,6 +121,26 @@ public class RobotHardware {
     public void init() {
 
         initCameraSystem();
+
+        drive.setPoseEstimate(PoseStorage.currentPose);
+
+        // Retrieve your pose
+        Pose2d myPose = drive.getPoseEstimate();
+
+        // Drive Through Door
+        TrajectorySequence trajSeqThroughDoor = drive.trajectorySequenceBuilder(myPose)
+                .lineToLinearHeading(new Pose2d(-2.50, -11.00, Math.toRadians(180)))
+                // Through Door
+                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
+                    leftDoorOpener.setPosition(OPENER_ON);
+                    rightDoorOpener.setPosition(OPENER_ON);
+                })
+                .forward(
+                        7,
+                        SampleMecanumDrive.getVelocityConstraint(4, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
+                        SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL)
+                )
+                .build();
 
         leftFrontDrive = myOpMode.hardwareMap.get(DcMotor.class, "leftFrontDrive");
         rightFrontDrive = myOpMode.hardwareMap.get(DcMotor.class, "rightFrontDrive");
@@ -920,7 +946,19 @@ public class RobotHardware {
     }
 
     public void teleOp() {
+
+        // Make sure to call drive.update() on *every* loop
+        // Increasing loop time by utilizing bulk reads and minimizing writes will increase your odometry accuracy
+        drive.update();
+
+        // Retrieve your pose
+        Pose2d myPose = drive.getPoseEstimate();
+
         // telemetry
+        myOpMode.telemetry.addData("x", myPose.getX());
+        myOpMode.telemetry.addData("y", myPose.getY());
+        myOpMode.telemetry.addData("heading", myPose.getHeading());
+
         myOpMode.telemetry.addData("pivotPosition", pivot.getCurrentPosition());
         myOpMode.telemetry.addData("armPosition", arm.getCurrentPosition());
         myOpMode.telemetry.addData("leftSlidesPosition", leftSlides.getCurrentPosition());
@@ -971,6 +1009,11 @@ public class RobotHardware {
             rightFrontDrive.setPower(RIGHT_FRONT_POWER);
             leftBackDrive.setPower(LEFT_BACK_POWER);
             rightBackDrive.setPower(RIGHT_BACK_POWER);
+        }
+
+        // drive to door
+        if (myOpMode.gamepad1.a) {
+            drive.followTrajectorySequence(trajSeqThroughDoor);
         }
 
         // auto pivot

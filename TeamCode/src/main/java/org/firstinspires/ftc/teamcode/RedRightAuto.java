@@ -31,12 +31,14 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
+import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 
 import java.util.Objects;
@@ -57,6 +59,8 @@ public class RedRightAuto extends LinearOpMode {
 
     //Declare a variable to store the Pixel's position, assign a default value
     String position = "LEFT";
+    int PIVOT_STACK_POS = -105;
+    double JOINT_STACK_POS = 0.303;
 
     //Create a runtime object so we can time loops
     ElapsedTime runtime = new ElapsedTime(0);
@@ -81,11 +85,22 @@ public class RedRightAuto extends LinearOpMode {
 
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
-        // TRAJECTORY
+        // TRAJECTORIES
 
         Pose2d startPose = new Pose2d(14.50, -63.00, Math.toRadians(270));
 
         drive.setPoseEstimate(startPose);
+
+        // Score + Set Position
+        Trajectory setArm = drive.trajectoryBuilder(null)
+                .addDisplacementMarker(0, () -> {
+                    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
+                    robot.rightClaw.setPosition(robot.CLAW_OPENED);
+                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
+                })
+                .build();
 
         // CENTER
         TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
@@ -93,15 +108,18 @@ public class RedRightAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
+
+                //.addDisplacementMarker(() -> drive.followTrajectoryAsync(setArm))
+
                 .lineToConstantHeading(new Vector2d(50.00, -37.50))
-                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                    robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
-                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
-                    robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, robot.PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(robot.JOINT_STACK_POS);
-                })
+                //.UNSTABLE_addDisplacementMarkerOffset(0, () -> {
+                //    robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+                //    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
+                //    robot.leftClaw.setPosition(robot.CLAW_OPENED);
+                //    robot.rightClaw.setPosition(robot.CLAW_OPENED);
+                //    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                //    robot.clawJoint.setPosition(JOINT_STACK_POS);
+                //})
                 .lineToConstantHeading(new Vector2d(37.00, -36.00))
                 .build();
 
@@ -117,8 +135,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                     robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, robot.PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(robot.JOINT_STACK_POS);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToConstantHeading(new Vector2d(37.00, -36.00))
                 .build();
@@ -135,8 +153,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                     robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, robot.PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(robot.JOINT_STACK_POS);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToConstantHeading(new Vector2d(37.00, -36.00))
                 .build();
@@ -184,8 +202,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                     robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, robot.PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(robot.JOINT_STACK_POS);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToConstantHeading(new Vector2d(37.00, -36.00))
                 .build();
@@ -216,8 +234,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.rightClaw.setPosition(robot.CLAW_OPENED);
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, robot.PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(robot.JOINT_STACK_POS);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToConstantHeading(new Vector2d(37.00, -36.00))
                 .build();
@@ -232,7 +250,6 @@ public class RedRightAuto extends LinearOpMode {
                 .splineToConstantHeading(new Vector2d(46.00, -10), Math.toRadians(180))
                 .build();
 
-        // Arm Stack Positions
 
         robot.setManualExposure(6, 250);  // Use low exposure time to reduce motion blur
         telemetry.addData(">", "Initialized");
@@ -260,8 +277,12 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq1);
 
-                //drive.followTrajectorySequence(trajSeqToStackRight);
-                drive.followTrajectorySequence(trajSeqToStackLeft);
+                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
+                    //drive.followTrajectorySequence(trajSeqToStackRight);
+                    drive.followTrajectorySequence(trajSeqToStackLeft);
+                    PIVOT_STACK_POS-=3;
+                    JOINT_STACK_POS-=0.2;
+                }
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);
@@ -270,8 +291,12 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq2);
 
-                //drive.followTrajectorySequence(trajSeqToStackRight);
-                drive.followTrajectorySequence(trajSeqToStackLeft);
+                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
+                    //drive.followTrajectorySequence(trajSeqToStackRight);
+                    drive.followTrajectorySequence(trajSeqToStackLeft);
+                    PIVOT_STACK_POS-=3;
+                    JOINT_STACK_POS-=0.2;
+                }
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);
@@ -280,13 +305,21 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq3);
 
-                drive.followTrajectorySequence(trajSeqToStackRight);
-                //drive.followTrajectorySequence(trajSeqToStackLeft);
+                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
+                    drive.followTrajectorySequence(trajSeqToStackRight);
+                    //drive.followTrajectorySequence(trajSeqToStackLeft);
+                    PIVOT_STACK_POS-=3;
+                    JOINT_STACK_POS-=0.2;
+                }
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);
 
             }
         }
+
+        // Transfer the current pose to PoseStorage so we can use it in TeleOp
+        PoseStorage.currentPose = drive.getPoseEstimate();
+
     }   // end runOpMode()
 }   // end class

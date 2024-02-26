@@ -37,6 +37,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 
 import java.util.Objects;
@@ -204,6 +205,10 @@ public class RedLeftAuto extends LinearOpMode {
             } else {
                 drive.followTrajectorySequence(trajSeq2);
             }
+
+            // Transfer the current pose to PoseStorage so we can use it in TeleOp
+            PoseStorage.currentPose = drive.getPoseEstimate();
+
         }
     }   // end runOpMode()
 }   // end class
