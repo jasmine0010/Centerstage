@@ -214,6 +214,7 @@ public class RedRightAuto extends LinearOpMode {
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .waitSeconds(1)
                 .build();
 
         // Left Stack Through Truss
@@ -246,6 +247,7 @@ public class RedRightAuto extends LinearOpMode {
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
                 .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .waitSeconds(1)
                 .build();
 
         // Park Outer
