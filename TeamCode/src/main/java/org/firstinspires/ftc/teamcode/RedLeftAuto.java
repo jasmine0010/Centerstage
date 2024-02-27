@@ -57,7 +57,7 @@ public class RedLeftAuto extends LinearOpMode {
     RobotHardware robot;
 
     //Declare a variable to store the Pixel's position, assign a default value
-    String position = "LEFT";
+    String position = null;
 
     //Create a runtime object so we can time loops
     ElapsedTime runtime = new ElapsedTime(0);
@@ -186,7 +186,7 @@ public class RedLeftAuto extends LinearOpMode {
             //this loop detects for five seconds, storing the outcome
             runtime.reset();
             while (opModeIsActive() && runtime.seconds() < 1) {
-                position = robot.detectPosition();
+                position = robot.detectPosition("LEFT");
                 // Push telemetry to the Driver Station.
                 telemetry.update();
 

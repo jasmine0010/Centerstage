@@ -31,7 +31,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
-import com.acmerobotics.roadrunner.trajectory.Trajectory;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -58,7 +57,7 @@ public class RedRightAuto extends LinearOpMode {
     RobotHardware robot;
 
     //Declare a variable to store the Pixel's position, assign a default value
-    String position = "LEFT";
+    String position = null;
     int PIVOT_STACK_POS = -105;
     double JOINT_STACK_POS = 0.303;
 
@@ -92,15 +91,15 @@ public class RedRightAuto extends LinearOpMode {
         drive.setPoseEstimate(startPose);
 
         // Score + Set Position
-        Trajectory setArm = drive.trajectoryBuilder(null)
-                .addDisplacementMarker(0, () -> {
-                    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
-                    robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(JOINT_STACK_POS);
-                })
-                .build();
+        //Trajectory setArm = drive.trajectoryBuilder(new Pose2d(0, 0, 0))
+        //        .addDisplacementMarker(0, () -> {
+        //            robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
+        //            robot.rightClaw.setPosition(robot.CLAW_OPENED);
+        //            robot.leftClaw.setPosition(robot.CLAW_OPENED);
+        //            robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+        //            robot.clawJoint.setPosition(JOINT_STACK_POS);
+        //        })
+        //        .build();
 
         // CENTER
         TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
@@ -111,16 +110,17 @@ public class RedRightAuto extends LinearOpMode {
 
                 //.addDisplacementMarker(() -> drive.followTrajectoryAsync(setArm))
 
-                .lineToConstantHeading(new Vector2d(50.00, -37.50))
-                //.UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                //    robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                //    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
-                //    robot.leftClaw.setPosition(robot.CLAW_OPENED);
-                //    robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                //    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
-                //    robot.clawJoint.setPosition(JOINT_STACK_POS);
-                //})
-                .lineToConstantHeading(new Vector2d(37.00, -36.00))
+                .lineToConstantHeading(new Vector2d(49.50, -37.50))
+                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
+                    robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+                    robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
+                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
+                    robot.rightClaw.setPosition(robot.CLAW_OPENED);
+                    robot.encoderPivot(1, PIVOT_STACK_POS, 5);
+                    robot.clawJoint.setPosition(JOINT_STACK_POS);
+                })
+                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .waitSeconds(1)
                 .build();
 
         // RIGHT
@@ -129,7 +129,7 @@ public class RedRightAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(50.00, -45.00))
+                .lineToConstantHeading(new Vector2d(49.50, -45.00))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
@@ -138,7 +138,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, PIVOT_STACK_POS, 5);
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
-                .lineToConstantHeading(new Vector2d(37.00, -36.00))
+                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .waitSeconds(1)
                 .build();
 
         // LEFT
@@ -147,7 +148,7 @@ public class RedRightAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(50.00, -32.00))
+                .lineToConstantHeading(new Vector2d(49.50, -32.00))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
@@ -156,7 +157,8 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, PIVOT_STACK_POS, 5);
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
-                .lineToConstantHeading(new Vector2d(37.00, -36.00))
+                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .waitSeconds(1)
                 .build();
 
         // CYCLE
@@ -174,7 +176,11 @@ public class RedRightAuto extends LinearOpMode {
                         SampleMecanumDrive.getVelocityConstraint(4, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
                         SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL)
                 )
-                .splineToConstantHeading(new Vector2d(-59, -9), Math.toRadians(180))
+                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
+                    robot.leftDoorOpener.setPosition(robot.OPENER_OFF);
+                    robot.rightDoorOpener.setPosition(robot.OPENER_OFF);
+                })
+                .splineToConstantHeading(new Vector2d(-63, -16), Math.toRadians(180))
                 // Left Claw
                 .forward(
                         4,
@@ -186,18 +192,20 @@ public class RedRightAuto extends LinearOpMode {
                 })
                 // Right Claw
                 .back(4)
-                .splineToConstantHeading(
-                        new Vector2d(-63, -14),
-                        Math.toRadians(180),
+                .strafeLeft(23)
+                .forward(
+                        4,
                         SampleMecanumDrive.getVelocityConstraint(5, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
                         SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL)
                 )
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.rightClaw.setPosition(robot.CLAW_CLOSED);
                 })
+                .back(4)
+                .strafeRight(23)
                 // Back to Backdrop
                 .lineToConstantHeading(new Vector2d(33, -9))
-                .lineToConstantHeading(new Vector2d(50, -40))
+                .lineToConstantHeading(new Vector2d(49.50, -40))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
@@ -205,11 +213,11 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, PIVOT_STACK_POS, 5);
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
-                .lineToConstantHeading(new Vector2d(37.00, -36.00))
+                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
                 .build();
 
         // Left Stack Through Truss
-        TrajectorySequence trajSeqToStackLeft = drive.trajectorySequenceBuilder(trajSeq1.end())
+        TrajectorySequence trajSeqToStackLeft = drive.trajectorySequenceBuilder(new Pose2d(30, -36, Math.toRadians(180)))
                 .lineToLinearHeading(new Pose2d(23.00, -59.00, Math.toRadians(180.00)))
                 .lineToConstantHeading(new Vector2d(-39.50, -59.00))
                 .splineToConstantHeading(new Vector2d(-59, -34), Math.toRadians(180))
@@ -226,10 +234,10 @@ public class RedRightAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.rightClaw.setPosition(robot.CLAW_CLOSED);
                 })
-                .back(1e-2)
+                .back(1e-2) // to adjust spline shape
                 .splineToConstantHeading(new Vector2d(-39.50, -59.00), Math.toRadians(180.00))
                 .lineToConstantHeading(new Vector2d(23, -59.00))
-                .lineToConstantHeading(new Vector2d(50.00, -40.00))
+                .lineToConstantHeading(new Vector2d(49.50, -40.00))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.encoderPivot(1, robot.PIVOT_UP_POS, 5);
                     robot.rightClaw.setPosition(robot.CLAW_OPENED);
@@ -237,7 +245,7 @@ public class RedRightAuto extends LinearOpMode {
                     robot.encoderPivot(1, PIVOT_STACK_POS, 5);
                     robot.clawJoint.setPosition(JOINT_STACK_POS);
                 })
-                .lineToConstantHeading(new Vector2d(37.00, -36.00))
+                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
                 .build();
 
         // Park Outer
@@ -261,7 +269,7 @@ public class RedRightAuto extends LinearOpMode {
             //this loop detects for five seconds, storing the outcome
             runtime.reset();
             while (opModeIsActive() && runtime.seconds() < 1) {
-                position = robot.detectPosition();
+                position = robot.detectPosition("LEFT");
                 // Push telemetry to the Driver Station.
                 telemetry.update();
 
@@ -277,12 +285,8 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq1);
 
-                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
-                    //drive.followTrajectorySequence(trajSeqToStackRight);
-                    drive.followTrajectorySequence(trajSeqToStackLeft);
-                    PIVOT_STACK_POS-=3;
-                    JOINT_STACK_POS-=0.2;
-                }
+                //drive.followTrajectorySequence(trajSeqToStackRight);
+                drive.followTrajectorySequence(trajSeqToStackLeft);
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);
@@ -291,12 +295,8 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq2);
 
-                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
-                    //drive.followTrajectorySequence(trajSeqToStackRight);
-                    drive.followTrajectorySequence(trajSeqToStackLeft);
-                    PIVOT_STACK_POS-=3;
-                    JOINT_STACK_POS-=0.2;
-                }
+                //drive.followTrajectorySequence(trajSeqToStackRight);
+                drive.followTrajectorySequence(trajSeqToStackLeft);
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);
@@ -305,12 +305,8 @@ public class RedRightAuto extends LinearOpMode {
 
                 drive.followTrajectorySequence(trajSeq3);
 
-                while (opModeIsActive() && (30-runtime.seconds()) > 5) {
-                    drive.followTrajectorySequence(trajSeqToStackRight);
-                    //drive.followTrajectorySequence(trajSeqToStackLeft);
-                    PIVOT_STACK_POS-=3;
-                    JOINT_STACK_POS-=0.2;
-                }
+                //drive.followTrajectorySequence(trajSeqToStackRight);
+                drive.followTrajectorySequence(trajSeqToStackLeft);
 
                 drive.followTrajectorySequence(trajSeqParkOuter);
                 //drive.followTrajectorySequence(trajSeqParkInner);

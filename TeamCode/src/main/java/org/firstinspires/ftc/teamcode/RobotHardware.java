@@ -65,7 +65,7 @@ public class RobotHardware {
      */
     public TfodProcessor tfod;
 
-    SampleMecanumDrive drive = new SampleMecanumDrive(myOpMode.hardwareMap);
+    SampleMecanumDrive drive = null;
 
     public DcMotor rightFrontDrive = null;
     public DcMotor leftFrontDrive = null;
@@ -122,7 +122,10 @@ public class RobotHardware {
 
         initCameraSystem();
 
+        drive = new SampleMecanumDrive(myOpMode.hardwareMap);
+
         drive.setPoseEstimate(PoseStorage.currentPose);
+        //drive.setPoseEstimate(new Pose2d(0, 0, 0));
 
         // Retrieve your pose
         Pose2d myPose = drive.getPoseEstimate();
@@ -285,9 +288,7 @@ public class RobotHardware {
     /**
      * This function will detect the pixel location and store it's location in the position variable
      */
-    public String detectPosition() {
-        String position = "LEFT";
-
+    public String detectPosition(String position) {
         List<Recognition> currentRecognitions = tfod.getRecognitions();
         myOpMode.telemetry.addData("# Objects Detected", currentRecognitions.size());
 
@@ -1011,11 +1012,6 @@ public class RobotHardware {
             rightBackDrive.setPower(RIGHT_BACK_POWER);
         }
 
-        // drive to door
-        if (myOpMode.gamepad1.a) {
-            drive.followTrajectorySequence(trajSeqThroughDoor);
-        }
-
         // auto pivot
         if (myOpMode.gamepad2.right_bumper && !PIVOT_UP) {
             encoderPivot(1, PIVOT_UP_POS, 5);
@@ -1073,6 +1069,11 @@ public class RobotHardware {
             clawJoint.setPosition(CLAW_JOINT_UP);
         } else {
             clawJoint.setPosition(CLAW_JOINT_DOWN);
+        }
+
+        // drive to door
+        if (myOpMode.gamepad1.a) {
+            drive.followTrajectorySequence(trajSeqThroughDoor);
         }
 
         // door opener
