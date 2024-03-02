@@ -70,5 +70,6 @@ public class StratusTeleOp extends LinearOpMode {
             // Call the robot's teleOp function
             robot.teleOp();
         }
+
     }
 }

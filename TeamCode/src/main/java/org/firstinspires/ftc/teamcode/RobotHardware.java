@@ -86,12 +86,12 @@ public class RobotHardware {
     boolean targetFound = false;
     boolean PIVOT_UP = false;
     boolean SLIDES_UP = false;
-    int PIVOT_UP_POS = -930;
+    int PIVOT_UP_POS = 330;
     double CLAW_JOINT_UP = 0;
     double CLAW_JOINT_DOWN = 0.28;
     double OPENER_ON = 1;
     double OPENER_OFF = 0.5;
-    double ARM_POWER = 0.5;
+    double ARM_POWER = 1;
     double CLAW_OPENED = 0.35;
     double CLAW_CLOSED = 0.55;
     double DRONE_UP = 0.2;
@@ -111,6 +111,14 @@ public class RobotHardware {
     final double MAX_AUTO_TURN  = 0.3;   //  Clip the turn speed to this max value (adjust for your robot)
 
     public static final int DESIRED_TAG_ID = -1;     // Choose the tag you want to approach or set to -1 for ANY tag.
+
+    public enum PivotMode {
+        MANUAL,
+        SCORING,
+        INTAKE
+    }
+
+    public PivotMode pivotMode = PivotMode.MANUAL;
 
     TrajectorySequence trajSeqThroughDoor = null;
 
@@ -167,6 +175,8 @@ public class RobotHardware {
         rightBackDrive.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         leftSlides.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         rightSlides.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        pivot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        arm.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         leftFrontDrive.setDirection(DcMotor.Direction.FORWARD);
         rightFrontDrive.setDirection(DcMotor.Direction.REVERSE);
@@ -179,9 +189,6 @@ public class RobotHardware {
         rightClaw.setDirection(Servo.Direction.FORWARD);
         leftClaw.setDirection(Servo.Direction.REVERSE);
         drone.setDirection(Servo.Direction.REVERSE);
-
-        pivot.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        pivot.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         /* Define how the hub is mounted on the robot to get the correct Yaw, Pitch and Roll values.
          *
@@ -644,7 +651,6 @@ public class RobotHardware {
 
             myOpMode.telemetry.addData("IMU position: ", orientation.getYaw(AngleUnit.DEGREES));
             myOpMode.telemetry.addData("Target Angle: ", targetAngle);
-            myOpMode.telemetry.update();
         }
 
         //stop the motors
@@ -670,87 +676,9 @@ public class RobotHardware {
             timeout.reset();
             pivot.setPower(Math.abs(speed));
 
-            // keep looping while we are still active, and there is time left, and both motors are running.
-            // Note: We use (isBusy() && isBusy()) in the loop test, which means that when EITHER motor hits
-            // its target position, the motion will stop.  This is "safer" in the event that the robot will
-            // always end the motion as soon as possible.
-            // However, if you require that BOTH motors have finished their moves before the robot continues
-            // onto the next step, use (isBusy() || isBusy()) in the loop test.
-            while (myOpMode.opModeIsActive() &&
-                    (timeout.seconds() < timeoutS) && (pivot.isBusy())) {
-
-                // claw joint
-                if (pivot.getCurrentPosition() < -600) {
-                    clawJoint.setPosition(CLAW_JOINT_UP);
-                } else {
-                    clawJoint.setPosition(CLAW_JOINT_DOWN);
-                }
-
-
-                //Drivetrain TeleOp Code
-                double max;
-
-                // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-                double axial   = -myOpMode.gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-                double lateral =  myOpMode.gamepad1.left_stick_x;
-                double yaw     =  myOpMode.gamepad1.right_stick_x;
-
-                // Combine the joystick requests for each axis-motion to determine each wheel's power.
-                // Set up a variable for each drive wheel to save the power level for telemetry.
-                double LEFT_FRONT_POWER  = axial + lateral + yaw;
-                double RIGHT_FRONT_POWER = axial - lateral - yaw;
-                double LEFT_BACK_POWER   = axial - lateral + yaw;
-                double RIGHT_BACK_POWER  = axial + lateral - yaw;
-
-                // Normalize the values so no wheel power exceeds 100%
-                // This ensures that the robot maintains the desired motion.
-                max = Math.max(Math.abs(LEFT_FRONT_POWER), Math.abs(RIGHT_FRONT_POWER));
-                max = Math.max(max, Math.abs(LEFT_BACK_POWER));
-                max = Math.max(max, Math.abs(RIGHT_BACK_POWER));
-
-                if (max > 1.0) {
-                    LEFT_FRONT_POWER /= max;
-                    RIGHT_FRONT_POWER /= max;
-                    LEFT_BACK_POWER /= max;
-                    RIGHT_BACK_POWER /= max;
-                }
-
-                // slow down motion and speed up motion
-                if (myOpMode.gamepad1.x) {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER/4);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER/4);
-                    leftBackDrive.setPower(LEFT_BACK_POWER/4);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER/4);
-                } else {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER);
-                    leftBackDrive.setPower(LEFT_BACK_POWER);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER);
-                }
-
-                // auto slides
-                if (myOpMode.gamepad1.y && !SLIDES_UP) {
-                    encoderLift(1, -1300, 5);
-                    encoderArm(1, -160, 5);
-                    SLIDES_UP = true;
-                } else if (myOpMode.gamepad1.y && SLIDES_UP) {
-                    encoderArm(1, 15, 5);
-                    encoderLift(1, 0, 5);
-                    SLIDES_UP = false;
-                }
-
-                // Display it for the driver.
-                myOpMode.telemetry.addData("Running to", target);
-                myOpMode.telemetry.addData("Pivot at", pivot.getCurrentPosition());
-                myOpMode.telemetry.update();
-            }
-
-            // Stop all motion;
-            pivot.setPower(0);
-
-            // Turn off RUN_TO_POSITION
-            // Turn On RUN_TO_POSITION
-            pivot.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            // Display it for the driver.
+            myOpMode.telemetry.addData("Running to", target);
+            myOpMode.telemetry.addData("Pivot at", pivot.getCurrentPosition());
         }
     }
 
@@ -770,73 +698,9 @@ public class RobotHardware {
             timeout.reset();
             arm.setPower(Math.abs(speed));
 
-            // keep looping while we are still active, and there is time left, and both motors are running.
-            // Note: We use (isBusy() && isBusy()) in the loop test, which means that when EITHER motor hits
-            // its target position, the motion will stop.  This is "safer" in the event that the robot will
-            // always end the motion as soon as possible.
-            // However, if you require that BOTH motors have finished their moves before the robot continues
-            // onto the next step, use (isBusy() || isBusy()) in the loop test.
-            while (myOpMode.opModeIsActive() &&
-                    (timeout.seconds() < timeoutS) && (arm.isBusy())) {
-
-                //Drivetrain TeleOp Code
-                double max;
-
-                // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-                double axial   = -myOpMode.gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-                double lateral =  myOpMode.gamepad1.left_stick_x;
-                double yaw     =  myOpMode.gamepad1.right_stick_x;
-
-                // Combine the joystick requests for each axis-motion to determine each wheel's power.
-                // Set up a variable for each drive wheel to save the power level for telemetry.
-                double LEFT_FRONT_POWER  = axial + lateral + yaw;
-                double RIGHT_FRONT_POWER = axial - lateral - yaw;
-                double LEFT_BACK_POWER   = axial - lateral + yaw;
-                double RIGHT_BACK_POWER  = axial + lateral - yaw;
-
-                // Normalize the values so no wheel power exceeds 100%
-                // This ensures that the robot maintains the desired motion.
-                max = Math.max(Math.abs(LEFT_FRONT_POWER), Math.abs(RIGHT_FRONT_POWER));
-                max = Math.max(max, Math.abs(LEFT_BACK_POWER));
-                max = Math.max(max, Math.abs(RIGHT_BACK_POWER));
-
-                if (max > 1.0) {
-                    LEFT_FRONT_POWER /= max;
-                    RIGHT_FRONT_POWER /= max;
-                    LEFT_BACK_POWER /= max;
-                    RIGHT_BACK_POWER /= max;
-                }
-
-                // slow down motion and speed up motion
-                if (myOpMode.gamepad1.x) {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER/4);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER/4);
-                    leftBackDrive.setPower(LEFT_BACK_POWER/4);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER/4);
-                } else {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER);
-                    leftBackDrive.setPower(LEFT_BACK_POWER);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER);
-                }
-
-                // auto pivot
-                if (myOpMode.gamepad2.right_bumper && !PIVOT_UP) {
-                    encoderPivot(1, PIVOT_UP_POS, 5);
-                    PIVOT_UP = true;
-                } else if (myOpMode.gamepad2.right_bumper && PIVOT_UP) {
-                    encoderPivot(1, 0, 5);
-                    PIVOT_UP = false;
-                }
-
-                // pivot
-                pivot.setPower(myOpMode.gamepad2.left_trigger*-1+myOpMode.gamepad2.right_trigger*1);
-
-                // Display it for the driver.
-                myOpMode.telemetry.addData("Running to", target);
-                myOpMode.telemetry.addData("Arm at", arm.getCurrentPosition());
-                myOpMode.telemetry.update();
-            }
+            // Display it for the driver.
+            myOpMode.telemetry.addData("Running to", target);
+            myOpMode.telemetry.addData("Arm at", arm.getCurrentPosition());
 
             // Stop all motion;
             arm.setPower(0);
@@ -866,74 +730,11 @@ public class RobotHardware {
             leftSlides.setPower(Math.abs(speed));
             rightSlides.setPower(Math.abs(speed));
 
-            // keep looping while we are still active, and there is time left, and both motors are running.
-            // Note: We use (isBusy() && isBusy()) in the loop test, which means that when EITHER motor hits
-            // its target position, the motion will stop.  This is "safer" in the event that the robot will
-            // always end the motion as soon as possible.
-            // However, if you require that BOTH motors have finished their moves before the robot continues
-            // onto the next step, use (isBusy() || isBusy()) in the loop test.
-            while (myOpMode.opModeIsActive() &&
-                    (timeout.seconds() < timeoutS) && (leftSlides.isBusy()) && (rightSlides.isBusy())) {
-
-                //Drivetrain TeleOp Code
-                double max;
-
-                // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
-                double axial   = -myOpMode.gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
-                double lateral =  myOpMode.gamepad1.left_stick_x;
-                double yaw     =  myOpMode.gamepad1.right_stick_x;
-
-                // Combine the joystick requests for each axis-motion to determine each wheel's power.
-                // Set up a variable for each drive wheel to save the power level for telemetry.
-                double LEFT_FRONT_POWER  = axial + lateral + yaw;
-                double RIGHT_FRONT_POWER = axial - lateral - yaw;
-                double LEFT_BACK_POWER   = axial - lateral + yaw;
-                double RIGHT_BACK_POWER  = axial + lateral - yaw;
-
-                // Normalize the values so no wheel power exceeds 100%
-                // This ensures that the robot maintains the desired motion.
-                max = Math.max(Math.abs(LEFT_FRONT_POWER), Math.abs(RIGHT_FRONT_POWER));
-                max = Math.max(max, Math.abs(LEFT_BACK_POWER));
-                max = Math.max(max, Math.abs(RIGHT_BACK_POWER));
-
-                if (max > 1.0) {
-                    LEFT_FRONT_POWER /= max;
-                    RIGHT_FRONT_POWER /= max;
-                    LEFT_BACK_POWER /= max;
-                    RIGHT_BACK_POWER /= max;
-                }
-
-                // slow down motion and speed up motion
-                if (myOpMode.gamepad1.x) {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER/4);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER/4);
-                    leftBackDrive.setPower(LEFT_BACK_POWER/4);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER/4);
-                } else {
-                    leftFrontDrive.setPower(LEFT_FRONT_POWER);
-                    rightFrontDrive.setPower(RIGHT_FRONT_POWER);
-                    leftBackDrive.setPower(LEFT_BACK_POWER);
-                    rightBackDrive.setPower(RIGHT_BACK_POWER);
-                }
-
-                // auto pivot
-                if (myOpMode.gamepad2.right_bumper && !PIVOT_UP) {
-                    encoderPivot(1, PIVOT_UP_POS, 5);
-                    PIVOT_UP = true;
-                } else if (myOpMode.gamepad2.right_bumper && PIVOT_UP) {
-                    encoderPivot(1, 0, 5);
-                    PIVOT_UP = false;
-                }
-
-                // pivot
-                pivot.setPower(myOpMode.gamepad2.left_trigger*-1+myOpMode.gamepad2.right_trigger*1);
-
-                // Display it for the driver.
-                myOpMode.telemetry.addData("Running to", target);
-                myOpMode.telemetry.addData("Slides at", leftSlides.getCurrentPosition());
-                myOpMode.telemetry.addData("Slides at", rightSlides.getCurrentPosition());
-                myOpMode.telemetry.update();
-            }
+            // Display it for the driver.
+            myOpMode.telemetry.addData("Running to", target);
+            myOpMode.telemetry.addData("Slides at", leftSlides.getCurrentPosition());
+            myOpMode.telemetry.addData("Slides at", rightSlides.getCurrentPosition());
+            myOpMode.telemetry.update();
 
             // Stop all motion;
             leftSlides.setPower(0);
@@ -1012,17 +813,29 @@ public class RobotHardware {
             rightBackDrive.setPower(RIGHT_BACK_POWER);
         }
 
-        // auto pivot
-        if (myOpMode.gamepad2.right_bumper && !PIVOT_UP) {
-            encoderPivot(1, PIVOT_UP_POS, 5);
-            PIVOT_UP = true;
-        } else if (myOpMode.gamepad2.right_bumper && PIVOT_UP) {
-            encoderPivot(1, 0, 5);
-            PIVOT_UP = false;
+        if (Math.abs(myOpMode.gamepad2.left_trigger)>0.1 || Math.abs(myOpMode.gamepad2.right_trigger)>0.1) {
+            pivotMode = PivotMode.MANUAL;
+        } else if (myOpMode.gamepad2.dpad_up) {
+            pivotMode = PivotMode.SCORING;
+        } else if (myOpMode.gamepad2.dpad_down) {
+            pivotMode = PivotMode.INTAKE;
         }
 
-        // pivot
-        pivot.setPower(myOpMode.gamepad2.left_trigger*-1+myOpMode.gamepad2.right_trigger*1);
+        if (pivotMode == PivotMode.MANUAL) {
+            double PIVOT_POWER_ADD;
+            if (pivot.getCurrentPosition()<170) {
+                PIVOT_POWER_ADD = 0.2;
+            } else {
+                PIVOT_POWER_ADD = -0.2;
+            }
+            pivot.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            pivot.setPower(myOpMode.gamepad2.left_trigger*-1+myOpMode.gamepad2.right_trigger*1+PIVOT_POWER_ADD);
+        } else if (pivotMode == PivotMode.SCORING) {
+            encoderPivot(1, PIVOT_UP_POS, 5);
+            PIVOT_UP = true;
+        } else if (pivotMode == PivotMode.INTAKE) {
+            encoderPivot(1, 0, 5);
+        }
 
         // auto slides
         if (myOpMode.gamepad1.y && !SLIDES_UP) {
@@ -1065,7 +878,7 @@ public class RobotHardware {
         }
 
         // claw joint
-        if (pivot.getCurrentPosition() < -600) {
+        if (pivot.getCurrentPosition() > 160) {
             clawJoint.setPosition(CLAW_JOINT_UP);
         } else {
             clawJoint.setPosition(CLAW_JOINT_DOWN);
