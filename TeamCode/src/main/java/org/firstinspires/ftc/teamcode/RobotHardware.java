@@ -682,6 +682,41 @@ public class RobotHardware {
         }
     }
 
+    public void encoderPivotAuto(double speed, int target, double timeoutS) {
+        int targetCounts;
+
+        // Ensure that the opmode is still active
+        if (myOpMode.opModeIsActive()) {
+
+            // Determine new target position, and pass to motor controller
+            pivot.setTargetPosition(target);
+
+            // Turn On RUN_TO_POSITION
+            pivot.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+            // reset the timeout time and start motion.
+            timeout.reset();
+            pivot.setPower(Math.abs(speed));
+
+            while (myOpMode.opModeIsActive() &&
+                    (timeout.seconds() < timeoutS) && (pivot.isBusy())) {
+
+                // claw joint
+                if (pivot.getCurrentPosition() > 160) {
+                    clawJoint.setPosition(CLAW_JOINT_UP);
+                } else {
+                    clawJoint.setPosition(CLAW_JOINT_DOWN);
+                }
+
+                // Display it for the driver.
+                myOpMode.telemetry.addData("Running to", target);
+                myOpMode.telemetry.addData("Pivot at", pivot.getCurrentPosition());
+            }
+
+            pivot.setPower(0);
+        }
+    }
+
     public void encoderArm(double speed, int target, double timeoutS) {
         int targetCounts;
 
@@ -698,9 +733,13 @@ public class RobotHardware {
             timeout.reset();
             arm.setPower(Math.abs(speed));
 
-            // Display it for the driver.
-            myOpMode.telemetry.addData("Running to", target);
-            myOpMode.telemetry.addData("Arm at", arm.getCurrentPosition());
+            while (myOpMode.opModeIsActive() &&
+                    (timeout.seconds() < timeoutS) && (arm.isBusy())) {
+
+                // Display it for the driver.
+                myOpMode.telemetry.addData("Running to", target);
+                myOpMode.telemetry.addData("Arm at", arm.getCurrentPosition());
+            }
 
             // Stop all motion;
             arm.setPower(0);
