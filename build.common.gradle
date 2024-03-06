@@ -138,5 +138,6 @@ android {
 }
 
 repositories {
+    mavenCentral()
 }
 

@@ -35,12 +35,21 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.hardware.camera.BuiltinCameraDirection;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
+import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
 import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.tfod.TfodProcessor;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /*
  * This OpMode illustrates the basics of TensorFlow Object Detection,
@@ -52,20 +61,43 @@ import java.util.Objects;
 @Autonomous(name = "RedRightAuto", group = "Concept")
 
 public class RedRightAuto extends LinearOpMode {
+    private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
+
+    // TFOD_MODEL_ASSET points to a model file stored in the project Asset location,
+    // this is only used for Android Studio when using models in Assets.
+    private static final String TFOD_MODEL_ASSET = "MyModelStoredAsAsset.tflite";
+    // TFOD_MODEL_FILE points to a model file stored onboard the Robot Controller's storage,
+    // this is used when uploading models directly to the RC using the model upload interface.
+    private static final String TFOD_MODEL_FILE = "/sdcard/FIRST/tflitemodels/model_20231109_095305.tflite";
+    // Define the labels recognized in the model for TFOD (must be in training order!)
+    private static final String[] LABELS = {
+            "RED PROP",
+            "BLUE PROP"
+    };
+
+    /**
+     * The variable to store our instance of the TensorFlow Object Detection processor.
+     */
+    private TfodProcessor tfod;
+
+    /**
+     * The variable to store our instance of the vision portal.
+     */
+    private VisionPortal visionPortal;
 
     //Add instance of RobotHardware
     RobotHardware robot;
 
     //Declare a variable to store the Pixel's position, assign a default value
-    String position = null;
-    int PIVOT_STACK_POS = -105;
-    double JOINT_STACK_POS = 0.303;
+    String position = "LEFT";
 
     //Create a runtime object so we can time loops
     ElapsedTime runtime = new ElapsedTime(0);
 
     @Override
     public void runOpMode() throws InterruptedException {
+
+        initTfod();
 
         //Initialize robot object with reference to this opMode
         //We can now call all the functions from the RobotHardware Class
@@ -92,93 +124,63 @@ public class RedRightAuto extends LinearOpMode {
 
         // CENTER
         TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
-                .lineToLinearHeading(new Pose2d(24.00, -24.00, Math.toRadians(180.00)))
+                .lineToLinearHeading(new Pose2d(24.00, -25.00, Math.toRadians(180.00)))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(50.15, -42.00))
-                //.lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(49.15, -41.00))
+                .build();
+
+        TrajectorySequence trajSeq1_2 = drive.trajectorySequenceBuilder(trajSeq1.end())
+                .back(4)
                 .build();
 
         // RIGHT
         TrajectorySequence trajSeq2 = drive.trajectorySequenceBuilder(startPose)
-                .lineToLinearHeading(new Pose2d(30.00, -32.00, Math.toRadians(180)))
+                .lineToLinearHeading(new Pose2d(31.50, -32.00, Math.toRadians(180)))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(52.50, -47.50))
-                //.lineToLinearHeading(new Pose2d(35.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(49.00, -48.00))
+                .build();
+        TrajectorySequence trajSeq2_2 = drive.trajectorySequenceBuilder(trajSeq2.end())
+                .back(4)
                 .build();
 
         // LEFT
         TrajectorySequence trajSeq3 = drive.trajectorySequenceBuilder(startPose)
-                .lineToSplineHeading(new Pose2d(6.70, -33.00, Math.toRadians(180)))
-                .addDisplacementMarker(31, () -> {
+                .lineToSplineHeading(new Pose2d(7.10, -33.00, Math.toRadians(180)))
+                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(49.50, -32.00))
-                //.lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(45.50, -32.00))
+                .build();
+        TrajectorySequence trajSeq3_2 = drive.trajectorySequenceBuilder(trajSeq3.end())
+                .back(4)
                 .build();
 
         // PARK
-        TrajectorySequence parkInner = drive.trajectorySequenceBuilder(trajSeq3.end())
+        TrajectorySequence parkInner = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeRight(22)
+                .strafeRight(24)
                 .build();
 
-        TrajectorySequence parkOuter = drive.trajectorySequenceBuilder(trajSeq3.end())
+        TrajectorySequence parkOuter = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeLeft(29)
+                .strafeLeft(32)
                 .build();
 
-        // CYCLE
-        // Left Stack Through Truss
-        TrajectorySequence trajSeqToStackLeft = drive.trajectorySequenceBuilder(trajSeq2.end())
-                .lineToLinearHeading(new Pose2d(23.00, -66.00, Math.toRadians(180.00)))
-                .lineToConstantHeading(new Vector2d(-39.50, -66.00))
-                .splineToConstantHeading(new Vector2d(-55, -34), Math.toRadians(180))
-                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                    robot.encoderPivotAuto(1, PIVOT_STACK_POS, 5);
-                    robot.clawJoint.setPosition(JOINT_STACK_POS);
-                })
-                .forward(
-                        8,
-                        SampleMecanumDrive.getVelocityConstraint(5, DriveConstants.MAX_ANG_VEL, DriveConstants.TRACK_WIDTH),
-                        SampleMecanumDrive.getAccelerationConstraint(DriveConstants.MAX_ACCEL)
-                )
-                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                    robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                })
-                .back(5)
-                .splineToConstantHeading(new Vector2d(-63, -39), Math.toRadians(180))
-                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                    robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                })
-                .back(1e-2) // to adjust spline shape
-                .splineToConstantHeading(new Vector2d(-39.50, -62.00), Math.toRadians(180.00))
-                .lineToConstantHeading(new Vector2d(23, -62.00))
-                .lineToConstantHeading(new Vector2d(49.50, -40.00))
-                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
-                    robot.encoderPivotAuto(1, robot.PIVOT_UP_POS, 5);
-                    robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
-                    robot.encoderPivotAuto(1, 0, 5);
-                    robot.clawJoint.setPosition(robot.CLAW_JOINT_DOWN);
-                })
-                .lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180))).waitSeconds(1)
-                .build();
-
-        robot.setManualExposure(6, 250);  // Use low exposure time to reduce motion blur
+        //robot.setManualExposure(6, 250);  // Use low exposure time to reduce motion blur
         telemetry.addData(">", "Initialized");
 
         waitForStart();
 
         if (opModeIsActive()) {
 
-            //this loop detects for five seconds, storing the outcome
+            //this loop detects for 1 second, storing the outcome
             runtime.reset();
             while (opModeIsActive() && runtime.seconds() < 1) {
-                position = robot.detectPosition("CENTER");
+                detectPosition();
                 // Push telemetry to the Driver Station.
                 telemetry.update();
 
@@ -187,35 +189,38 @@ public class RedRightAuto extends LinearOpMode {
             }
 
             // Save more CPU resources when camera is no longer needed.
-            // VisionPortal.close();
+            visionPortal.close();
 
             //now you can move your robot based on the value of the 'position' variable
             if (Objects.equals(position, "CENTER")) {
                 drive.followTrajectorySequence(trajSeq1);
                 robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderPivotAuto(1, robot.PIVOT_UP_POS, 5);
+                robot.pivotPID(330);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                robot.encoderPivotAuto(1, 0, 5);
+                drive.followTrajectorySequence(trajSeq1_2);
+                sleep(500);
+                robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderArm(1, 25, 5);
                 drive.followTrajectorySequence(parkInner);
             } else if (Objects.equals(position, "RIGHT")) {
                 drive.followTrajectorySequence(trajSeq2);
                 robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderPivotAuto(1, robot.PIVOT_UP_POS, 5);
+                robot.pivotPID(330);
+                drive.followTrajectorySequence(trajSeq2_2);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                robot.encoderPivotAuto(1, 0, 5);
+                sleep(500);
+                robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderArm(1, 25, 5);
                 drive.followTrajectorySequence(parkOuter);
             } else {
                 drive.followTrajectorySequence(trajSeq3);
                 robot.leftClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderPivotAuto(1, robot.PIVOT_UP_POS, 5);
+                robot.pivotPID(330);
+                drive.followTrajectorySequence(trajSeq3_2);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
-                robot.encoderPivotAuto(1, 0, 5);
+                sleep(500);
+                robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                robot.encoderArm(1, 25, 5);
                 drive.followTrajectorySequence(parkInner);
             }
         }
@@ -224,4 +229,147 @@ public class RedRightAuto extends LinearOpMode {
         PoseStorage.currentPose = drive.getPoseEstimate();
 
     }   // end runOpMode()
+
+    /**
+     * Initialize the TensorFlow Object Detection processor.
+     */
+    /**
+     * Initialize the TensorFlow Object Detection processor.
+     */
+    private void initTfod() {
+
+        // Create the TensorFlow processor by using a builder.
+        tfod = new TfodProcessor.Builder()
+
+                // With the following lines commented out, the default TfodProcessor Builder
+                // will load the default model for the season. To define a custom model to load,
+                // choose one of the following:
+                //   Use setModelAssetName() if the custom TF Model is built in as an asset (AS only).
+                //   Use setModelFileName() if you have downloaded a custom team model to the Robot Controller.
+                //.setModelAssetName(TFOD_MODEL_ASSET)
+                .setModelFileName(TFOD_MODEL_FILE)
+
+                // The following default settings are available to un-comment and edit as needed to
+                // set parameters for custom models.
+                .setModelLabels(LABELS)
+                //.setIsModelTensorFlow2(true)
+                //.setIsModelQuantized(true)
+                //.setModelInputSize(300)
+                //.setModelAspectRatio(16.0 / 9.0)
+
+                .build();
+
+        // Create the vision portal by using a builder.
+        VisionPortal.Builder builder = new VisionPortal.Builder();
+
+        // Set the camera (webcam vs. built-in RC phone camera).
+        if (USE_WEBCAM) {
+            builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
+        } else {
+            builder.setCamera(BuiltinCameraDirection.BACK);
+        }
+
+        // Choose a camera resolution. Not all cameras support all resolutions.
+        //builder.setCameraResolution(new Size(640, 480));
+
+        // Enable the RC preview (LiveView).  Set "false" to omit camera monitoring.
+        //builder.enableLiveView(true);
+
+        // Set the stream format; MJPEG uses less bandwidth than default YUY2.
+        //builder.setStreamFormat(VisionPortal.StreamFormat.YUY2);
+
+        // Choose whether or not LiveView stops if no processors are enabled.
+        // If set "true", monitor shows solid orange screen if no processors enabled.
+        // If set "false", monitor shows camera view without annotations.
+        //builder.setAutoStopLiveView(false);
+
+        // Set and enable the processor.
+        builder.addProcessor(tfod);
+
+        // Build the Vision Portal, using the above settings.
+        visionPortal = builder.build();
+
+        // Set confidence threshold for TFOD recognitions, at any time.
+        //tfod.setMinResultConfidence(0.75f);
+
+        // Disable or re-enable the TFOD processor at any time.
+        //visionPortal.setProcessorEnabled(tfod, true);
+
+    }   // end method initTfod()
+
+    /**
+     * This function will detect the pixel location and store it's location in the position variable
+     */
+    private void detectPosition() {
+
+        List<Recognition> currentRecognitions = tfod.getRecognitions();
+        telemetry.addData("# Objects Detected", currentRecognitions.size());
+
+        //These thresholds will need to be adjusted based on testing on the field
+        int LEFT_THRESHOLD = 100;
+        int RIGHT_THRESHOLD = 460;
+
+        //This is pulling from the first object it detects...if it detects more than one...
+        //you may need to choose based on size or position
+        if(currentRecognitions.size()>0) {
+            Recognition rec = currentRecognitions.get(0);
+
+            telemetry.addData("- Position", rec.getLeft());
+
+            if (rec.getLeft() < LEFT_THRESHOLD) {
+                position = "LEFT";
+            } else if (rec.getLeft() > RIGHT_THRESHOLD) {
+                position = "RIGHT";
+            } else {
+                position = "CENTER";
+            }
+        }
+
+        // Step through the list of recognitions and display info for each one.
+        for (Recognition recognition : currentRecognitions) {
+            double x = (recognition.getLeft() + recognition.getRight()) / 2 ;
+            double y = (recognition.getTop()  + recognition.getBottom()) / 2 ;
+
+            telemetry.addData(""," ");
+            telemetry.addData("Image", "%s (%.0f %% Conf.)", recognition.getLabel(), recognition.getConfidence() * 100);
+            telemetry.addData("- Position", "%.0f / %.0f", x, y);
+            telemetry.addData("- Size", "%.0f x %.0f", recognition.getWidth(), recognition.getHeight());
+        }   // end for() loop
+
+    }   // end method telemetryTfod()
+
+
+    private void setManualExposure(int exposureMS, int gain) {
+        // Wait for the camera to be open, then use the controls
+
+        if (visionPortal == null) {
+            return;
+        }
+
+        // Make sure camera is streaming before we try to set the exposure controls
+        if (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING) {
+            telemetry.addData("Camera", "Waiting");
+            telemetry.update();
+            while (!isStopRequested() && (visionPortal.getCameraState() != VisionPortal.CameraState.STREAMING)) {
+                sleep(20);
+            }
+            telemetry.addData("Camera", "Ready");
+            telemetry.update();
+        }
+
+        // Set camera controls unless we are stopping.
+        if (!isStopRequested())
+        {
+            ExposureControl exposureControl = visionPortal.getCameraControl(ExposureControl.class);
+            if (exposureControl.getMode() != ExposureControl.Mode.Manual) {
+                exposureControl.setMode(ExposureControl.Mode.Manual);
+                sleep(50);
+            }
+            exposureControl.setExposure((long)exposureMS, TimeUnit.MILLISECONDS);
+            sleep(20);
+            GainControl gainControl = visionPortal.getCameraControl(GainControl.class);
+            gainControl.setGain(gain);
+            sleep(20);
+        }
+    }
 }   // end class

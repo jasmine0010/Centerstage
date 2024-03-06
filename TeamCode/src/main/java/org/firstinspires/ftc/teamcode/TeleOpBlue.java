@@ -29,12 +29,8 @@
 
 package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
-import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
-import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
 
 /*
  * This file contains an minimal example of a Linear "OpMode". An OpMode is a 'program' that runs in either
@@ -49,9 +45,9 @@ import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
  */
 
-@TeleOp(name="Tele Op", group="Linear OpMode")
+@TeleOp(name="Tele Op Blue", group="Linear OpMode")
 
-public class StratusTeleOp extends LinearOpMode {
+public class TeleOpBlue extends LinearOpMode {
 
     RobotHardware robot;
 
@@ -68,7 +64,7 @@ public class StratusTeleOp extends LinearOpMode {
 
             // Insert whatever teleop code you're using
             // Call the robot's teleOp function
-            robot.teleOp();
+            robot.teleOpBlue();
         }
 
     }

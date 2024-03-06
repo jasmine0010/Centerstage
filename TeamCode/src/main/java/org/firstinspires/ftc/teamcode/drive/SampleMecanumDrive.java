@@ -68,7 +68,10 @@ public class SampleMecanumDrive extends MecanumDrive {
     private static final TrajectoryVelocityConstraint VEL_CONSTRAINT = getVelocityConstraint(MAX_VEL, MAX_ANG_VEL, TRACK_WIDTH);
     private static final TrajectoryAccelerationConstraint ACCEL_CONSTRAINT = getAccelerationConstraint(MAX_ACCEL);
 
-    private final DcMotorEx leftFront, leftRear, rightRear, rightFront;
+    public static DcMotorEx leftFront = null;
+    public static DcMotorEx leftRear = null;
+    public static DcMotorEx rightRear = null;
+    public static DcMotorEx rightFront = null;
     private final List<DcMotorEx> motors;
 
     private final IMU imu;
