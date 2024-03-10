@@ -140,4 +140,3 @@ android {
 repositories {
     mavenCentral()
 }
-
