@@ -78,7 +78,7 @@ public class BlueLeftAuto extends LinearOpMode {
     /**
      * The variable to store our instance of the TensorFlow Object Detection processor.
      */
-    private TfodProcessor tfod;
+    //private TfodProcessor tfod;
 
     /**
      * The variable to store our instance of the vision portal.
@@ -89,7 +89,7 @@ public class BlueLeftAuto extends LinearOpMode {
     RobotHardware robot;
 
     //Declare a variable to store the Pixel's position, assign a default value
-    String position = "RIGHT";
+    String position = "LEFT";
 
     //Create a runtime object so we can time loops
     ElapsedTime runtime = new ElapsedTime(0);
@@ -97,7 +97,7 @@ public class BlueLeftAuto extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
 
-        initTfod();
+        //initTfod();
 
         //Initialize robot object with reference to this opMode
         //We can now call all the functions from the RobotHardware Class
@@ -124,16 +124,15 @@ public class BlueLeftAuto extends LinearOpMode {
 
         // CENTER
         TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
-                .lineToLinearHeading(new Pose2d(24.00, 26.00, Math.toRadians(180.00)))
+                .lineToLinearHeading(new Pose2d(24.00, 25.00, Math.toRadians(180.00)))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(43.15, 39.00))
-                //.lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(45.50, 35.50))
                 .build();
 
         TrajectorySequence trajSeq1_2 = drive.trajectorySequenceBuilder(trajSeq1.end())
-                .back(4)
+                .back(5)
                 .build();
 
         // LEFT
@@ -142,11 +141,10 @@ public class BlueLeftAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(49.50, 45.00))
-                //.lineToLinearHeading(new Pose2d(35.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(47.00, 43.00))
                 .build();
         TrajectorySequence trajSeq2_2 = drive.trajectorySequenceBuilder(trajSeq2.end())
-                .back(3)
+                .back(5)
                 .build();
 
         // RIGHT
@@ -155,22 +153,23 @@ public class BlueLeftAuto extends LinearOpMode {
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(48.50, 31.50))
-                //.lineToLinearHeading(new Pose2d(30.00, -36.00, Math.toRadians(180)))
+                .lineToConstantHeading(new Vector2d(48.00, 27.50))
                 .build();
         TrajectorySequence trajSeq3_2 = drive.trajectorySequenceBuilder(trajSeq3.end())
-                .back(4)
+                .back(5)
                 .build();
 
         // PARK
         TrajectorySequence parkOuter = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeRight(30)
+                .strafeRight(34)
+                .back(8)
                 .build();
 
         TrajectorySequence parkInner = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeLeft(26)
+                .strafeLeft(22)
+                .back(8)
                 .build();
 
 
@@ -193,8 +192,7 @@ public class BlueLeftAuto extends LinearOpMode {
             }
 
             // Save more CPU resources when camera is no longer needed.
-            visionPortal.close();
-
+            //visionPortal.close();
 
             //now you can move your robot based on the value of the 'position' variable
             if (Objects.equals(position, "CENTER")) {
@@ -207,6 +205,7 @@ public class BlueLeftAuto extends LinearOpMode {
                 robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
                 drive.followTrajectorySequence(parkOuter);
+
             } else if (Objects.equals(position, "LEFT")) {
                 drive.followTrajectorySequence(trajSeq2);
                 robot.leftClaw.setPosition(robot.CLAW_CLOSED);
@@ -216,7 +215,8 @@ public class BlueLeftAuto extends LinearOpMode {
                 sleep(500);
                 robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                drive.followTrajectorySequence(parkOuter);
+                drive.followTrajectorySequence(parkInner);
+
             } else {
                 drive.followTrajectorySequence(trajSeq3);
                 robot.leftClaw.setPosition(robot.CLAW_CLOSED);
@@ -231,8 +231,11 @@ public class BlueLeftAuto extends LinearOpMode {
         }
 
         // Transfer the current pose to PoseStorage so we can use it in TeleOp
-        PoseStorage.currentPose = drive.getPoseEstimate();
+        //PoseStorage.currentPose = drive.getPoseEstimate();
+        //robot.myPose = PoseStorage.currentPose;
 
+        // Transfer the current pose to PoseStorage so we can use it in TeleOp
+        robot.myPose = PoseStorage.currentPose;
     }   // end runOpMode()
 
     /**
@@ -244,7 +247,7 @@ public class BlueLeftAuto extends LinearOpMode {
     private void initTfod() {
 
         // Create the TensorFlow processor by using a builder.
-        tfod = new TfodProcessor.Builder()
+        robot.tfod = new TfodProcessor.Builder()
 
                 // With the following lines commented out, the default TfodProcessor Builder
                 // will load the default model for the season. To define a custom model to load,
@@ -289,7 +292,7 @@ public class BlueLeftAuto extends LinearOpMode {
         //builder.setAutoStopLiveView(false);
 
         // Set and enable the processor.
-        builder.addProcessor(tfod);
+        builder.addProcessor(robot.tfod);
 
         // Build the Vision Portal, using the above settings.
         visionPortal = builder.build();
@@ -307,12 +310,12 @@ public class BlueLeftAuto extends LinearOpMode {
      */
     private void detectPosition() {
 
-        List<Recognition> currentRecognitions = tfod.getRecognitions();
+        List<Recognition> currentRecognitions = robot.tfod.getRecognitions();
         telemetry.addData("# Objects Detected", currentRecognitions.size());
 
         //These thresholds will need to be adjusted based on testing on the field
-        int LEFT_THRESHOLD = 100;
-        int RIGHT_THRESHOLD = 460;
+        int LEFT_THRESHOLD = -100;
+        int RIGHT_THRESHOLD = 300;
 
         //This is pulling from the first object it detects...if it detects more than one...
         //you may need to choose based on size or position
@@ -377,5 +380,4 @@ public class BlueLeftAuto extends LinearOpMode {
             sleep(20);
         }
     }
-
 }   // end class

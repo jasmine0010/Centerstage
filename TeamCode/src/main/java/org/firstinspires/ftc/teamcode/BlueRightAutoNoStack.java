@@ -40,7 +40,6 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
 import org.firstinspires.ftc.robotcore.external.tfod.Recognition;
-import org.firstinspires.ftc.teamcode.drive.DriveConstants;
 import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
 import org.firstinspires.ftc.teamcode.drive.advanced.PoseStorage;
 import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
@@ -58,9 +57,9 @@ import java.util.concurrent.TimeUnit;
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list.
  */
-@Autonomous(name = "RedRightAuto", group = "Concept")
+@Autonomous(name = "BlueRightAutoNoStack", group = "Concept")
 
-public class RedRightAuto extends LinearOpMode {
+public class BlueRightAutoNoStack extends LinearOpMode {
     private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
 
     // TFOD_MODEL_ASSET points to a model file stored in the project Asset location,
@@ -116,19 +115,22 @@ public class RedRightAuto extends LinearOpMode {
 
         SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
 
-        // TRAJECTORIES
+        // TRAJECTORY
 
-        Pose2d startPose = new Pose2d(14.50, -63.00, Math.toRadians(270));
+        Pose2d startPose = new Pose2d(-37, 61, Math.toRadians(90));
 
         drive.setPoseEstimate(startPose);
 
         // CENTER
         TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
-                .lineToLinearHeading(new Pose2d(24.00, -25.00, Math.toRadians(180.00)))
+                .back(45)
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(48.00, -43.00))
+                .lineToLinearHeading(new Pose2d(-5.00, 12.00, Math.toRadians(180)))
+                .waitSeconds(5)
+                .lineToConstantHeading(new Vector2d(33.00, 13.00))
+                .lineToConstantHeading(new Vector2d(48.00, 43))
                 .build();
 
         TrajectorySequence trajSeq1_2 = drive.trajectorySequenceBuilder(trajSeq1.end())
@@ -137,24 +139,34 @@ public class RedRightAuto extends LinearOpMode {
 
         // RIGHT
         TrajectorySequence trajSeq2 = drive.trajectorySequenceBuilder(startPose)
-                .lineToLinearHeading(new Pose2d(28.50, -32.00, Math.toRadians(180)))
+                .lineToLinearHeading(new Pose2d(-32, 31, Math.toRadians(0)))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(48.00, -48.00))
+                .lineToLinearHeading(new Pose2d(-40, 8, Math.toRadians(180) - 1e-6))
+                .lineToConstantHeading(new Vector2d(-5, 12.00))
+                .waitSeconds(5 )
+                .lineToConstantHeading(new Vector2d(33, 13))
+                .lineToConstantHeading(new Vector2d(45.00, 45))
                 .build();
+
         TrajectorySequence trajSeq2_2 = drive.trajectorySequenceBuilder(trajSeq2.end())
                 .back(5)
                 .build();
 
+
         // LEFT
         TrajectorySequence trajSeq3 = drive.trajectorySequenceBuilder(startPose)
-                .lineToSplineHeading(new Pose2d(6.10, -33.00, Math.toRadians(180)))
+                .lineTo(new Vector2d(-45.80, 22))
                 .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
                     robot.leftClaw.setPosition(robot.CLAW_OPENED);
                 })
-                .lineToConstantHeading(new Vector2d(44.50, -32.00))
+                .lineToLinearHeading(new Pose2d(-10, 11.00, Math.toRadians(180)))
+                .waitSeconds(5)
+                .lineToConstantHeading(new Vector2d(33, 17))
+                .lineToConstantHeading(new Vector2d(47.50, 31))
                 .build();
+
         TrajectorySequence trajSeq3_2 = drive.trajectorySequenceBuilder(trajSeq3.end())
                 .back(5)
                 .build();
@@ -162,14 +174,14 @@ public class RedRightAuto extends LinearOpMode {
         // PARK
         TrajectorySequence parkInner = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeRight(24)
-                .back(15)
+                .strafeLeft(22)
+                .back(8)
                 .build();
 
         TrajectorySequence parkOuter = drive.trajectorySequenceBuilder(trajSeq3_2.end())
                 .forward(4)
-                .strafeLeft(40)
-                .back(15)
+                .strafeRight(29)
+                .back(8)
                 .build();
 
         //robot.setManualExposure(6, 250);  // Use low exposure time to reduce motion blur
@@ -196,41 +208,41 @@ public class RedRightAuto extends LinearOpMode {
             //now you can move your robot based on the value of the 'position' variable
             if (Objects.equals(position, "CENTER")) {
                 drive.followTrajectorySequence(trajSeq1);
-                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                 robot.pivotPID(330);
                 drive.followTrajectorySequence(trajSeq1_2);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
                 sleep(500);
                 robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
+                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                 drive.followTrajectorySequence(parkOuter);
             } else if (Objects.equals(position, "RIGHT")) {
                 drive.followTrajectorySequence(trajSeq2);
-                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                 robot.pivotPID(330);
                 drive.followTrajectorySequence(trajSeq2_2);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
                 sleep(500);
                 robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                drive.followTrajectorySequence(parkOuter);
+                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+                drive.followTrajectorySequence(parkInner);
             } else {
                 drive.followTrajectorySequence(trajSeq3);
-                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
                 robot.pivotPID(330);
                 drive.followTrajectorySequence(trajSeq3_2);
                 robot.rightClaw.setPosition(robot.CLAW_OPENED);
                 sleep(500);
                 robot.pivotPID(0);
                 robot.rightClaw.setPosition(robot.CLAW_CLOSED);
-                drive.followTrajectorySequence(parkOuter);
+                robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+                drive.followTrajectorySequence(parkInner);
             }
+
+            // Transfer the current pose to PoseStorage so we can use it in TeleOp
+            PoseStorage.currentPose = drive.getPoseEstimate();
+            robot.myPose = PoseStorage.currentPose;
+
         }
-
-        // Transfer the current pose to PoseStorage so we can use it in TeleOp
-        PoseStorage.currentPose = drive.getPoseEstimate();
-        robot.myPose = PoseStorage.currentPose;
-
     }   // end runOpMode()
 
     /**
@@ -309,8 +321,8 @@ public class RedRightAuto extends LinearOpMode {
         telemetry.addData("# Objects Detected", currentRecognitions.size());
 
         //These thresholds will need to be adjusted based on testing on the field
-        int LEFT_THRESHOLD = 0;
-        int RIGHT_THRESHOLD = 250;
+        int LEFT_THRESHOLD = -100;
+        int RIGHT_THRESHOLD = 300;
 
         //This is pulling from the first object it detects...if it detects more than one...
         //you may need to choose based on size or position

@@ -3,12 +3,17 @@ package org.firstinspires.ftc.teamcode;
 import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.gamepad1;
 import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
 
+import android.util.Size;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.acmerobotics.roadrunner.control.PIDFController;
 import com.acmerobotics.roadrunner.drive.Drive;
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
+import com.acmerobotics.roadrunner.trajectory.Trajectory;
+import com.acmerobotics.roadrunner.util.Angle;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
@@ -36,6 +41,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.tfod.TfodProcessor;
+import org.opencv.features2d.ORB;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -93,7 +99,9 @@ public class RobotHardware {
     public DcMotor arm = null;
     public IMU imu;
 
-
+    // Declare a PIDF Controller to regulate heading
+    // Use the same gains as SampleMecanumDrive's heading controller
+    private PIDFController headingController;
     private PIDController pivotPID;
     public static double PIVOT_P = 0.05, PIVOT_I = 0.01, PIVOT_D = 0.005;
     public static double PIVOT_F = 0.1;
@@ -103,7 +111,7 @@ public class RobotHardware {
     private final double ticks_in_degree = 288 / 360.0;
 
     boolean targetFound = false;
-    boolean PIVOT_UP = false;
+    boolean ORBIT_ACTIVATED = false;
     int PIVOT_UP_POS = 330;
     double CLAW_JOINT_UP = 0;
     double CLAW_JOINT_DOWN = 0.28 ;
@@ -139,11 +147,28 @@ public class RobotHardware {
     public enum DriveMode {
         STANDARD,
         FIELD_CENTRIC,
-        DRIVE_TO_DOOR
+        DRIVE_TO_DOOR,
+        ALIGN_BACKDROP,
+        APRILTAGS,
+        ORBIT
     }
 
     public PivotMode pivotMode = PivotMode.MANUAL;
     public DriveMode driveMode = DriveMode.STANDARD;
+
+    // The coordinates we want the bot to automatically go to
+    Vector2d targetVector = new Vector2d(0, 0);
+    // The heading we want the bot to end on for targetVector
+    double targetHeading = Math.toRadians(180);
+
+    // The angle we want to align
+    double targetAlignAngle = Math.toRadians(180);
+
+    // Point to orbit
+    private final Vector2d blueOrbitPosition = new Vector2d(-62.50, -60);
+    private final Vector2d redOrbitPosition = new Vector2d(-62.50, 60);
+
+    public Pose2d myPose = new Pose2d(44, 6, Math.toRadians(180));
 
     public RobotHardware(LinearOpMode opmode) {
         myOpMode = opmode;
@@ -158,10 +183,11 @@ public class RobotHardware {
         drive.setPoseEstimate(PoseStorage.currentPose);
         //drive.setPoseEstimate(new Pose2d(0, 0, 0));
 
-        // Retrieve your pose
-        Pose2d myPose = drive.getPoseEstimate();
-
         pivotPID = new PIDController(PIVOT_P, PIVOT_I, PIVOT_D);
+        headingController = new PIDFController(SampleMecanumDrive.HEADING_PID_TELE);
+        // Set input bounds for the heading controller
+        // Automatically handles overflow
+        headingController.setInputBounds(-Math.PI, Math.PI);
 
         //telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
@@ -201,6 +227,17 @@ public class RobotHardware {
         rightClaw.setDirection(Servo.Direction.FORWARD);
         leftClaw.setDirection(Servo.Direction.REVERSE);
         drone.setDirection(Servo.Direction.REVERSE);
+
+        // We want to turn off velocity control for teleop
+        // Velocity control per wheel is not necessary outside of motion profiled auto
+        drive.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        pivot.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        leftSlides.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        rightSlides.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        leftSlides.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        rightSlides.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        arm.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        arm.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         /* Define how the hub is mounted on the robot to get the correct Yaw, Pitch and Roll values.
          *
@@ -281,7 +318,7 @@ public class RobotHardware {
         }
 
         // Choose a camera resolution. Not all cameras support all resolutions.
-        //builder.setCameraResolution(new Size(640, 480));
+        builder.setCameraResolution(new Size(640, 480));
 
         // Enable the RC preview (LiveView).  Set "false" to omit camera monitoring.
         //builder.enableLiveView(true);
@@ -312,6 +349,11 @@ public class RobotHardware {
         double strafe = 0;
 
         while (rangeError > 1 && myOpMode.opModeIsActive()) {
+
+            if (myOpMode.gamepad1.dpad_up) {
+                driveMode = DriveMode.STANDARD;
+                break;
+            }
 
             targetFound = false;
 
@@ -374,25 +416,38 @@ public class RobotHardware {
                 }
 
                 // Send powers to the wheels.
-                leftFrontDrive.setPower(leftFrontPower);
-                rightFrontDrive.setPower(rightFrontPower);
-                leftBackDrive.setPower(leftBackPower);
-                rightBackDrive.setPower(rightBackPower);
+                SampleMecanumDrive.leftFront.setPower(leftFrontPower);
+                SampleMecanumDrive.rightFront.setPower(rightFrontPower);
+                SampleMecanumDrive.leftRear.setPower(leftBackPower);
+                SampleMecanumDrive.rightRear.setPower(rightBackPower);
             } else {
                 myOpMode.telemetry.addData("\n>","Drive using joysticks to find valid target\n");
-                leftFrontDrive.setPower(0);
-                rightFrontDrive.setPower(0);
-                leftBackDrive.setPower(0);
-                rightBackDrive.setPower(0);
+                SampleMecanumDrive.leftFront.setPower(0);
+                SampleMecanumDrive.rightFront.setPower(0);
+                SampleMecanumDrive.leftRear.setPower(0);
+                SampleMecanumDrive.rightRear.setPower(0);
+                driveMode = DriveMode.STANDARD;
+                break;
+            }
+
+            if (desiredTag.id == 1) {
+            //    Pose2d pose = new Pose2d(-63, -63, Math.toRadians(0));
+            //    drive.setPoseEstimate(pose);
+            //    PoseStorage.currentPose = drive.getPoseEstimate();
+            //    myPose = PoseStorage.currentPose;
+            } else if (desiredTag.id == 2) {
+
+            } else if (desiredTag.id == 3) {
+
             }
 
             myOpMode.telemetry.update();
         }
 
-        leftFrontDrive.setPower(0);
-        rightFrontDrive.setPower(0);
-        leftBackDrive.setPower(0);
-        rightBackDrive.setPower(0);
+        SampleMecanumDrive.leftFront.setPower(0);
+        SampleMecanumDrive.rightFront.setPower(0);
+        SampleMecanumDrive.leftRear.setPower(0);
+        SampleMecanumDrive.rightRear.setPower(0);
     }
 
     /*
@@ -689,7 +744,8 @@ public class RobotHardware {
     }
 
     public void pivotPID(int target) {
-        while (Math.abs(target-pivot.getCurrentPosition()) > 10) {
+        pivot.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        while (Math.abs(target-pivot.getCurrentPosition()) > 10 && myOpMode.opModeIsActive()) {
 
             // claw joint
             if (pivot.getCurrentPosition() > 160) {
@@ -711,50 +767,18 @@ public class RobotHardware {
         pivot.setPower(0);
     }
 
-    //public void pivotToPositionPID(int targetPos, int tolerance) {
+    public void pivotTelePID(int target) {
+        if (myOpMode.opModeIsActive()) {
+            pivotPID.setPID(PIVOT_P, PIVOT_I, PIVOT_D);
+            int pivotPos = pivot.getCurrentPosition();
+            double pid = pivotPID.calculate(pivotPos, target);
+            double ff = Math.cos(Math.toRadians(PIVOT_TARGET / ticks_in_degree)) * PIVOT_F;
 
-    //    double Kp = 0;
-    //    double Ki = 0;
-    //    double Kd = 0;
-    //    double Kcos = 0;
+            double power = pid + ff;
 
-    //    double reference = YOUR_TARGET_ANGLE;
-
-    //    int reference = targetPos;
-
-    //    double integralSum = 0;
-
-    //    double lastError = 0;
-    //    double error = 100;
-
-    //    ElapsedTime timer = new ElapsedTime();
-
-    //    while (Math.abs(error) > tolerance) {
-
-            // obtain the encoder position
-    //        double encoderPosition = pivot.getCurrentPosition();
-            // calculate the error
-    //        error = reference - encoderPosition;
-
-            // rate of change of the error
-    //        double derivative = (error - lastError) / timer.seconds();
-
-            // sum of all error over time
-    //        integralSum = integralSum + (error * timer.seconds());
-
-    //        double out = Math.cos(reference) * Kcos + (Kp * error) + (Ki * integralSum) + (Kd * derivative);
-
-    //        pivot.setPower(out);
-
-    //        lastError = error;
-
-            // reset the timer for next time
-    //        timer.reset();
-
-    //        myOpMode.telemetry.addData("Error:", error);
-
-    //    }
-    //}
+            pivot.setPower(power);
+        }
+    }
 
     public void encoderArm(double speed, int target, double timeoutS) {
         int targetCounts;
@@ -832,18 +856,29 @@ public class RobotHardware {
         drive.update();
 
         // Retrieve your pose
-        Pose2d myPose = drive.getPoseEstimate();
+        myPose = drive.getLocalizer().getPoseEstimate();
+
+        // Declare a drive direction
+        // Pose representing desired x, y, and angular velocity
+        Pose2d driveDirection = new Pose2d();
 
         // telemetry
+        myOpMode.telemetry.addData("Drive mode: ", driveMode);
+        myOpMode.telemetry.addData("Pivot mode: ", pivotMode);
         myOpMode.telemetry.addData("x", myPose.getX());
         myOpMode.telemetry.addData("y", myPose.getY());
         myOpMode.telemetry.addData("heading", myPose.getHeading());
+        myOpMode.telemetry.addData("orbit ", ORBIT_ACTIVATED);
 
         myOpMode.telemetry.addData("pivotPosition", pivot.getCurrentPosition());
         myOpMode.telemetry.addData("armPosition", arm.getCurrentPosition());
         myOpMode.telemetry.addData("leftSlidesPosition", leftSlides.getCurrentPosition());
         myOpMode.telemetry.addData("rightSlidesPosition", rightSlides.getCurrentPosition());
         myOpMode.telemetry.update();
+
+        if (myOpMode.gamepad1.y) {
+            ORBIT_ACTIVATED = !ORBIT_ACTIVATED;
+        }
 
         //Drivetrain TeleOp Code
         double max;
@@ -873,21 +908,73 @@ public class RobotHardware {
             RIGHT_BACK_POWER /= max;
         }
 
-        if (myOpMode.gamepad1.dpad_up) {
+        if (myPose.getX() < -40 && myPose.getY() > 40 && ORBIT_ACTIVATED) {
+            driveMode = DriveMode.ORBIT;
+        } else if (myOpMode.gamepad1.dpad_up) {
             driveMode = DriveMode.STANDARD;
         } else if (myOpMode.gamepad1.dpad_down) {
             driveMode = DriveMode.FIELD_CENTRIC;
+        } else if (myOpMode.gamepad1.dpad_left) {
+            driveMode = DriveMode.DRIVE_TO_DOOR;
+        } else if (myOpMode.gamepad1.dpad_right) {
+            driveMode = DriveMode.ALIGN_BACKDROP;
+        } else if (myOpMode.gamepad1.b) {
+            driveMode = DriveMode.APRILTAGS;
         }
 
-        if (myOpMode.gamepad1.a || myOpMode.gamepad1.x) {
+        if (myOpMode.gamepad1.x) {
+            Pose2d pose = new Pose2d(-63, 63, Math.toRadians(0));
+            drive.setPoseEstimate(pose);
+            PoseStorage.currentPose = drive.getPoseEstimate();
+            myPose = PoseStorage.currentPose;
+            ORBIT_ACTIVATED = false;
+        }
+
+        if (myOpMode.gamepad1.a) {
             SampleMecanumDrive.leftFront.setPower(LEFT_FRONT_POWER / 4);
             SampleMecanumDrive.rightFront.setPower(RIGHT_FRONT_POWER / 4);
             SampleMecanumDrive.leftRear.setPower(LEFT_BACK_POWER / 4);
             SampleMecanumDrive.rightRear.setPower(RIGHT_BACK_POWER / 4);
 
+        } else if (driveMode == DriveMode.ORBIT) {
+            if (!ORBIT_ACTIVATED || myPose.getX()>-40 || myPose.getY()<40) {
+                driveMode = DriveMode.STANDARD;
+            }
+            // Create a vector from the gamepad x/y inputs which is the field relative movement
+            // Then, rotate that vector by the inverse of that heading for field centric control
+            Vector2d fieldFrameInput = new Vector2d(
+                    myOpMode.gamepad1.left_stick_x,
+                    -myOpMode.gamepad1.left_stick_y
+            );
+            Vector2d robotFrameInput = fieldFrameInput.rotated(-myPose.getHeading());
+
+            // Difference between the target vector and the bot's position
+            Vector2d difference = redOrbitPosition.minus(myPose.vec());
+            // Obtain the target angle for feedback and derivative for feedforward
+            double theta = difference.angle();
+
+            // Not technically omega because its power. This is the derivative of atan2
+            double thetaFF = -fieldFrameInput.rotated(-Math.PI / 2).dot(difference) / (difference.norm() * difference.norm());
+
+            // Set the target heading for the heading controller to our desired angle
+            headingController.setTargetPosition(theta);
+
+            // Set desired angular velocity to the heading controller output + angular
+            // velocity feedforward
+            double headingInput = (headingController.update(myPose.getHeading())
+                    * DriveConstants.kV + thetaFF)
+                    * DriveConstants.TRACK_WIDTH;
+
+            // Combine the field centric x/y velocity with our derived angular velocity
+            driveDirection = new Pose2d(
+                    robotFrameInput,
+                    headingInput
+            );
+            drive.setWeightedDrivePower(driveDirection);
+
         } else if (driveMode == DriveMode.FIELD_CENTRIC) {
             // Read pose
-            Pose2d poseEstimate = drive.getPoseEstimate();
+            Pose2d poseEstimate = drive.getLocalizer().getPoseEstimate();
 
             // Create a vector from the gamepad x/y inputs
             // Then, rotate that vector by the inverse of that heading
@@ -905,16 +992,25 @@ public class RobotHardware {
                             -myOpMode.gamepad1.right_stick_x
                     )
             );
+        } else if (driveMode == DriveMode.APRILTAGS) {
+            setManualExposure(6, 250);
+            driveToAprilTag(-1, 12);
         } else if (driveMode == DriveMode.STANDARD) {
             SampleMecanumDrive.leftFront.setPower(LEFT_FRONT_POWER*1.1);
             SampleMecanumDrive.rightFront.setPower(RIGHT_FRONT_POWER*1.1);
             SampleMecanumDrive.leftRear.setPower(LEFT_BACK_POWER*1.1);
             SampleMecanumDrive.rightRear.setPower(RIGHT_BACK_POWER*1.1);
+        } else if (driveMode == DriveMode.DRIVE_TO_DOOR) {
+            Trajectory traj1 = drive.trajectoryBuilder(myPose)
+                    .splineTo(targetVector, targetHeading)
+                    .build();
+            drive.followTrajectory(traj1);
+            driveMode = DriveMode.STANDARD;
+        } else if (driveMode == DriveMode.ALIGN_BACKDROP) {
+            drive.turn(Angle.normDelta(targetAlignAngle - myPose.getHeading()));
+            driveMode = DriveMode.STANDARD;
         }
 
-        if (myOpMode.gamepad1.b) {
-            driveToAprilTag(-1, 6);
-        }
 
         // PIVOT
         if (Math.abs(myOpMode.gamepad2.left_trigger)>0.1 || Math.abs(myOpMode.gamepad2.right_trigger)>0.1) {
@@ -936,14 +1032,13 @@ public class RobotHardware {
             pivot.setPower(myOpMode.gamepad2.right_trigger*-1+myOpMode.gamepad2.left_trigger+PIVOT_POWER_ADD);
         } else if (pivotMode == PivotMode.SCORING) {
             pivotPID(330);
-            PIVOT_UP = true;
         } else if (pivotMode == PivotMode.INTAKE) {
             pivotPID(0);
         }
 
         // linear slides - R lower, L raise
-        rightSlides.setPower(myOpMode.gamepad1.left_trigger-myOpMode.gamepad1.right_trigger);
-        leftSlides.setPower(myOpMode.gamepad1.left_trigger-myOpMode.gamepad1.right_trigger);
+        rightSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
+        leftSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
 
         // arm
         if (myOpMode.gamepad1.left_bumper) {
@@ -994,18 +1089,29 @@ public class RobotHardware {
         drive.update();
 
         // Retrieve your pose
-        Pose2d myPose = drive.getPoseEstimate();
+        myPose = drive.getLocalizer().getPoseEstimate();
+
+        // Declare a drive direction
+        // Pose representing desired x, y, and angular velocity
+        Pose2d driveDirection = new Pose2d();
 
         // telemetry
+        myOpMode.telemetry.addData("Drive mode: ", driveMode);
+        myOpMode.telemetry.addData("Pivot mode: ", pivotMode);
         myOpMode.telemetry.addData("x", myPose.getX());
         myOpMode.telemetry.addData("y", myPose.getY());
         myOpMode.telemetry.addData("heading", myPose.getHeading());
+        myOpMode.telemetry.addData("orbit ", ORBIT_ACTIVATED);
 
         myOpMode.telemetry.addData("pivotPosition", pivot.getCurrentPosition());
         myOpMode.telemetry.addData("armPosition", arm.getCurrentPosition());
         myOpMode.telemetry.addData("leftSlidesPosition", leftSlides.getCurrentPosition());
         myOpMode.telemetry.addData("rightSlidesPosition", rightSlides.getCurrentPosition());
         myOpMode.telemetry.update();
+
+        if (myOpMode.gamepad1.y) {
+            ORBIT_ACTIVATED = !ORBIT_ACTIVATED;
+        }
 
         //Drivetrain TeleOp Code
         double max;
@@ -1035,28 +1141,80 @@ public class RobotHardware {
             RIGHT_BACK_POWER /= max;
         }
 
-        if (myOpMode.gamepad1.dpad_up) {
+        if (myPose.getX() < -40 && myPose.getY() < -40 && ORBIT_ACTIVATED) {
+            driveMode = DriveMode.ORBIT;
+        } else if (myOpMode.gamepad1.dpad_up) {
             driveMode = DriveMode.STANDARD;
         } else if (myOpMode.gamepad1.dpad_down) {
             driveMode = DriveMode.FIELD_CENTRIC;
+        } else if (myOpMode.gamepad1.dpad_left) {
+            driveMode = DriveMode.DRIVE_TO_DOOR;
+        } else if (myOpMode.gamepad1.dpad_right) {
+            driveMode = DriveMode.ALIGN_BACKDROP;
+        } else if (myOpMode.gamepad1.b) {
+            driveMode = DriveMode.APRILTAGS;
         }
 
-        if (myOpMode.gamepad1.a || myOpMode.gamepad1.x) {
+        if (myOpMode.gamepad1.x) {
+            Pose2d pose = new Pose2d(-63, -63, Math.toRadians(0));
+            drive.setPoseEstimate(pose);
+            PoseStorage.currentPose = drive.getPoseEstimate();
+            myPose = PoseStorage.currentPose;
+            ORBIT_ACTIVATED = false;
+        }
+
+        if (myOpMode.gamepad1.a) {
             SampleMecanumDrive.leftFront.setPower(LEFT_FRONT_POWER / 4);
             SampleMecanumDrive.rightFront.setPower(RIGHT_FRONT_POWER / 4);
             SampleMecanumDrive.leftRear.setPower(LEFT_BACK_POWER / 4);
             SampleMecanumDrive.rightRear.setPower(RIGHT_BACK_POWER / 4);
 
+        } else if (driveMode == DriveMode.ORBIT) {
+            if (!ORBIT_ACTIVATED || myPose.getX()>-40 || myPose.getY()>-40) {
+                driveMode = DriveMode.STANDARD;
+            }
+            // Create a vector from the gamepad x/y inputs which is the field relative movement
+            // Then, rotate that vector by the inverse of that heading for field centric control
+            Vector2d fieldFrameInput = new Vector2d(
+                    -myOpMode.gamepad1.left_stick_x,
+                    myOpMode.gamepad1.left_stick_y
+            );
+            Vector2d robotFrameInput = fieldFrameInput.rotated(-myPose.getHeading());
+
+            // Difference between the target vector and the bot's position
+            Vector2d difference = blueOrbitPosition.minus(myPose.vec());
+            // Obtain the target angle for feedback and derivative for feedforward
+            double theta = difference.angle();
+
+            // Not technically omega because its power. This is the derivative of atan2
+            double thetaFF = -fieldFrameInput.rotated(-Math.PI / 2).dot(difference) / (difference.norm() * difference.norm());
+
+            // Set the target heading for the heading controller to our desired angle
+            headingController.setTargetPosition(theta);
+
+            // Set desired angular velocity to the heading controller output + angular
+            // velocity feedforward
+            double headingInput = (headingController.update(myPose.getHeading())
+                    * DriveConstants.kV + thetaFF)
+                    * DriveConstants.TRACK_WIDTH;
+
+            // Combine the field centric x/y velocity with our derived angular velocity
+            driveDirection = new Pose2d(
+                    robotFrameInput,
+                    headingInput
+            );
+            drive.setWeightedDrivePower(driveDirection);
+
         } else if (driveMode == DriveMode.FIELD_CENTRIC) {
             // Read pose
-            Pose2d poseEstimate = drive.getPoseEstimate();
+            Pose2d poseEstimate = drive.getLocalizer().getPoseEstimate();
 
             // Create a vector from the gamepad x/y inputs
             // Then, rotate that vector by the inverse of that heading
             Vector2d input = new Vector2d(
                     -myOpMode.gamepad1.left_stick_y,
                     -myOpMode.gamepad1.left_stick_x
-            ).rotated(-poseEstimate.getHeading()-Math.toRadians(90));
+            ).rotated(-poseEstimate.getHeading()+Math.toRadians(90));
 
             // Pass in the rotated input + right stick value for rotation
             // Rotation is not part of the rotated input thus must be passed in separately
@@ -1067,16 +1225,25 @@ public class RobotHardware {
                             -myOpMode.gamepad1.right_stick_x
                     )
             );
+        } else if (driveMode == DriveMode.APRILTAGS) {
+            setManualExposure(6, 250);
+            driveToAprilTag(-1, 12);
         } else if (driveMode == DriveMode.STANDARD) {
             SampleMecanumDrive.leftFront.setPower(LEFT_FRONT_POWER*1.1);
             SampleMecanumDrive.rightFront.setPower(RIGHT_FRONT_POWER*1.1);
             SampleMecanumDrive.leftRear.setPower(LEFT_BACK_POWER*1.1);
             SampleMecanumDrive.rightRear.setPower(RIGHT_BACK_POWER*1.1);
+        } else if (driveMode == DriveMode.DRIVE_TO_DOOR) {
+            Trajectory traj1 = drive.trajectoryBuilder(myPose)
+                    .splineTo(targetVector, targetHeading)
+                    .build();
+            drive.followTrajectory(traj1);
+            driveMode = DriveMode.STANDARD;
+        } else if (driveMode == DriveMode.ALIGN_BACKDROP) {
+            drive.turn(Angle.normDelta(targetAlignAngle - myPose.getHeading()));
+            driveMode = DriveMode.STANDARD;
         }
 
-        if (myOpMode.gamepad1.b) {
-            driveToAprilTag(-1, 6);
-        }
 
         // PIVOT
         if (Math.abs(myOpMode.gamepad2.left_trigger)>0.1 || Math.abs(myOpMode.gamepad2.right_trigger)>0.1) {
@@ -1098,14 +1265,13 @@ public class RobotHardware {
             pivot.setPower(myOpMode.gamepad2.right_trigger*-1+myOpMode.gamepad2.left_trigger+PIVOT_POWER_ADD);
         } else if (pivotMode == PivotMode.SCORING) {
             pivotPID(330);
-            PIVOT_UP = true;
         } else if (pivotMode == PivotMode.INTAKE) {
             pivotPID(0);
         }
 
         // linear slides - R lower, L raise
-        rightSlides.setPower(myOpMode.gamepad1.left_trigger-myOpMode.gamepad1.right_trigger);
-        leftSlides.setPower(myOpMode.gamepad1.left_trigger-myOpMode.gamepad1.right_trigger);
+        rightSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
+        leftSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
 
         // arm
         if (myOpMode.gamepad1.left_bumper) {
