@@ -1113,7 +1113,7 @@ public class RobotHardware {
             ORBIT_ACTIVATED = !ORBIT_ACTIVATED;
         }
 
-        //Drivetrain TeleOp Code
+        // Drivetrain TeleOp Code
         double max;
 
         // POV Mode uses left joystick to go forward & strafe, and right joystick to rotate.
@@ -1245,7 +1245,7 @@ public class RobotHardware {
         }
 
 
-        // PIVOT
+        // Pivot
         if (Math.abs(myOpMode.gamepad2.left_trigger)>0.1 || Math.abs(myOpMode.gamepad2.right_trigger)>0.1) {
             pivotMode = PivotMode.MANUAL;
         } else if (myOpMode.gamepad2.dpad_up) {
@@ -1269,11 +1269,11 @@ public class RobotHardware {
             pivotPID(0);
         }
 
-        // linear slides - R lower, L raise
+        // Linear slides - R lower, L raise
         rightSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
         leftSlides.setPower(myOpMode.gamepad1.right_trigger-myOpMode.gamepad1.left_trigger);
 
-        // arm
+        // Arm
         if (myOpMode.gamepad1.left_bumper) {
             arm.setPower(ARM_POWER*-1);
         } else if (myOpMode.gamepad1.right_bumper) {
@@ -1282,14 +1282,14 @@ public class RobotHardware {
             arm.setPower(0);
         }
 
-        // drone
+        // Drone
         if (myOpMode.gamepad2.b) {
             drone.setPosition(DRONE_UP);
         } else {
             drone.setPosition(DRONE_DOWN);
         }
 
-        // claw
+        // Claw
         if (myOpMode.gamepad2.left_bumper) {
             leftClaw.setPosition(CLAW_OPENED);
             rightClaw.setPosition(CLAW_OPENED);
@@ -1298,14 +1298,14 @@ public class RobotHardware {
             rightClaw.setPosition(CLAW_CLOSED);
         }
 
-        // claw joint
+        // Claw joint
         if (pivot.getCurrentPosition() > 160) {
             clawJoint.setPosition(CLAW_JOINT_UP);
         } else {
             clawJoint.setPosition(CLAW_JOINT_DOWN);
         }
 
-        // door opener
+        // Door opener
         if (myOpMode.gamepad1.a) {
             leftDoorOpener.setPosition(OPENER_ON);
             rightDoorOpener.setPosition(OPENER_ON);
