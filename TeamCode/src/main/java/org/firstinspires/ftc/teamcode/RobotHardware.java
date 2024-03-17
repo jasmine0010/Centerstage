@@ -430,17 +430,6 @@ public class RobotHardware {
                 break;
             }
 
-            if (desiredTag.id == 1) {
-            //    Pose2d pose = new Pose2d(-63, -63, Math.toRadians(0));
-            //    drive.setPoseEstimate(pose);
-            //    PoseStorage.currentPose = drive.getPoseEstimate();
-            //    myPose = PoseStorage.currentPose;
-            } else if (desiredTag.id == 2) {
-
-            } else if (desiredTag.id == 3) {
-
-            }
-
             myOpMode.telemetry.update();
         }
 

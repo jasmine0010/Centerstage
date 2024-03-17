@@ -30,17 +30,23 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
 TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-package org.firstinspires.ftc.robotcontroller.external.samples;
+package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.hardware.rev.Rev2mDistanceSensor;
 import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DistanceSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.internal.system.Deadline;
+import org.firstinspires.ftc.teamcode.drive.SampleMecanumDrive;
+import org.firstinspires.ftc.teamcode.trajectorysequence.TrajectorySequence;
 
 import java.util.concurrent.TimeUnit;
 
@@ -51,7 +57,7 @@ import java.util.concurrent.TimeUnit;
  * detect a number of predefined objects and AprilTags in the 36h11 family, can
  * recognize colors, and can be trained to detect custom objects. See this website for
  * documentation: https://wiki.dfrobot.com/HUSKYLENS_V1.0_SKU_SEN0305_SEN0336
- * 
+ *
  * This sample illustrates how to detect AprilTags, but can be used to detect other types
  * of objects by changing the algorithm. It assumes that the HuskyLens is configured with
  * a name of "huskylens".
@@ -59,17 +65,29 @@ import java.util.concurrent.TimeUnit;
  * Use Android Studio to Copy this Class, and Paste it into your team's code folder with a new name.
  * Remove or comment out the @Disabled line to add this OpMode to the Driver Station OpMode list
  */
-@TeleOp(name = "Sensor: HuskyLens", group = "Sensor")
-@Disabled
+@Autonomous(name = "Sensor: HuskyLens", group = "Sensor")
+
 public class SensorHuskyLens extends LinearOpMode {
 
     private final int READ_PERIOD = 1;
 
     private HuskyLens huskyLens;
 
+    //Add instance of RobotHardware
+    RobotHardware robot;
+
     @Override
     public void runOpMode()
     {
+        //Create a runtime object so we can time loops
+        ElapsedTime runtime = new ElapsedTime(0);
+
+        SampleMecanumDrive drive = new SampleMecanumDrive(hardwareMap);
+
+        robot = new RobotHardware(this);
+        //We need to initialize the robot hardware
+        robot.init();
+
         huskyLens = hardwareMap.get(HuskyLens.class, "huskylens");
 
         /*
@@ -113,6 +131,32 @@ public class SensorHuskyLens extends LinearOpMode {
          */
         huskyLens.selectAlgorithm(HuskyLens.Algorithm.OBJECT_TRACKING);
 
+        robot.clawJoint.setPosition(robot.CLAW_JOINT_DOWN);
+        robot.rightClaw.setPosition(robot.CLAW_CLOSED);
+        robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+
+        // TRAJECTORIES
+
+        Pose2d startPose = new Pose2d(14.50, -63.00, Math.toRadians(270));
+
+        drive.setPoseEstimate(startPose);
+
+        // CENTER
+        TrajectorySequence trajSeq1 = drive.trajectorySequenceBuilder(startPose)
+                .lineToLinearHeading(new Pose2d(24.00, -25.00, Math.toRadians(180.00)))
+                .UNSTABLE_addDisplacementMarkerOffset(0, () -> {
+                    robot.leftClaw.setPosition(robot.CLAW_OPENED);
+                })
+                .lineToConstantHeading(new Vector2d(48.00, -41.00))
+                .build();
+
+        // PARK
+        TrajectorySequence parkOuter = drive.trajectorySequenceBuilder(trajSeq1.end())
+                .forward(4)
+                .strafeLeft(30)
+                .back(15)
+                .build();
+
         telemetry.update();
         waitForStart();
 
@@ -122,28 +166,61 @@ public class SensorHuskyLens extends LinearOpMode {
          *
          * Note again that the device only recognizes the 36h11 family of tags out of the box.
          */
-        while(opModeIsActive()) {
-            if (!rateLimit.hasExpired()) {
-                continue;
-            }
-            rateLimit.reset();
+        if(opModeIsActive()) {
 
-            /*
-             * All algorithms, except for LINE_TRACKING, return a list of Blocks where a
-             * Block represents the outline of a recognized object along with its ID number.
-             * ID numbers allow you to identify what the device saw.  See the HuskyLens documentation
-             * referenced in the header comment above for more information on IDs and how to
-             * assign them to objects.
-             *
-             * Returns an empty array if no objects are seen.
-             */
-            HuskyLens.Block[] blocks = huskyLens.blocks();
-            telemetry.addData("Block count", blocks.length);
-            for (int i = 0; i < blocks.length; i++) {
-                telemetry.addData("Block", blocks[i].toString());
+            //move
+            //drive.followTrajectorySequence(trajSeq1);
+            robot.leftClaw.setPosition(robot.CLAW_CLOSED);
+            robot.pivotPID(200);
+
+            //this loop detects for 5 seconds, storing the outcome
+            runtime.reset();
+
+            while(opModeIsActive() && runtime.seconds() < 5) {
+                if (!rateLimit.hasExpired()) {
+                    continue;
+                }
+                rateLimit.reset();
+
+                /*
+                 * All algorithms, except for LINE_TRACKING, return a list of Blocks where a
+                 * Block represents the outline of a recognized object along with its ID number.
+                 * ID numbers allow you to identify what the device saw.  See the HuskyLens documentation
+                 * referenced in the header comment above for more information on IDs and how to
+                 * assign them to objects.
+                 *
+                 * Returns an empty array if no objects are seen.
+                 */
+                HuskyLens.Block[] blocks = huskyLens.blocks();
+                telemetry.addData("Block count", blocks.length);
+
+                for (HuskyLens.Block block : blocks) {
+                    telemetry.addData("Block", block.toString());
+                }
+
+                if (blocks.length != 0 && blocks[0].x > 80) {
+                    SampleMecanumDrive.leftFront.setPower(-0.3);
+                    SampleMecanumDrive.rightFront.setPower(0.3);
+                    SampleMecanumDrive.leftRear.setPower(0.3);
+                    SampleMecanumDrive.rightRear.setPower(-0.3);
+                } else {
+                    SampleMecanumDrive.leftFront.setPower(0);
+                    SampleMecanumDrive.rightFront.setPower(0);
+                    SampleMecanumDrive.leftRear.setPower(0);
+                    SampleMecanumDrive.rightRear.setPower(0);
+                }
+
+                telemetry.update();
             }
 
-            telemetry.update();
+            //robot.pivotPID(330);
+            //robot.encoderDrive(0.5, -4, 5);
+            //robot.rightClaw.setPosition(robot.CLAW_OPENED);
+            //sleep(500);
+            //robot.pivotPID(0);
+            //robot.rightClaw.setPosition(robot.CLAW_CLOSED);
+            //drive.followTrajectorySequence(parkOuter);
+
         }
     }
 }
